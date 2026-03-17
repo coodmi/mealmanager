@@ -49,7 +49,6 @@ android/app/google-services.json
 android/app/keystore.jks
 android/key.properties
 ios/Runner/GoogleService-Info.plist
-lib/firebase_options.dart
 
 # Firebase hosting
 .firebase/
