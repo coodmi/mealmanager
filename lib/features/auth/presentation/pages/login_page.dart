@@ -172,10 +172,10 @@ class _LoginPageState extends State<LoginPage>
                   color: AppColors.primaryGreen.withValues(alpha: 0.1),
                   shape: BoxShape.circle,
                 ),
-                child: Icon(
-                  Icons.restaurant_menu,
-                  size: 60,
-                  color: AppColors.primaryGreen,
+                child: Image.asset(
+                  'assets/images/logo.png',
+                  width: 100,
+                  height: 100,
                 ),
               ),
               const SizedBox(height: 24),
@@ -261,12 +261,23 @@ class _LoginPageState extends State<LoginPage>
       if (!mounted) return;
 
       if (result['success']) {
-        // Get user data to check if they have a mess
+        // Get user data to check role and mess
         final userData = await AuthService.getUserData();
 
         if (!mounted) return;
 
-        if (userData != null && userData['messId'] != null) {
+        final role = userData?['role'] as String? ?? 'member';
+        final isAdmin =
+            role == 'superAdmin' ||
+            role == 'systemAdmin' ||
+            role == 'supportAdmin' ||
+            role == 'contentAdmin' ||
+            role == 'manager';
+
+        if (isAdmin) {
+          // Admin users go directly to admin panel
+          context.go(AppRouter.admin);
+        } else if (userData != null && userData['messId'] != null) {
           // User has a mess, go directly to dashboard
           context.go(AppRouter.dashboard);
         } else {

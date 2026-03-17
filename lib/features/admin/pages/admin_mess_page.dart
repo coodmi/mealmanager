@@ -50,10 +50,10 @@ class _AdminMessPageState extends State<AdminMessPage> {
                 }
                 return GridView.builder(
                   gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                    maxCrossAxisExtent: 380,
+                    maxCrossAxisExtent: 340,
                     crossAxisSpacing: 16,
                     mainAxisSpacing: 16,
-                    childAspectRatio: 1.5,
+                    childAspectRatio: 1.3,
                   ),
                   itemCount: docs.length,
                   itemBuilder: (_, i) => _MessCard(
@@ -84,6 +84,7 @@ class _MessCard extends StatelessWidget {
     return AdminCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
           Row(
             children: [
@@ -131,30 +132,39 @@ class _MessCard extends StatelessWidget {
                 ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
           _row(
             'Mess ID',
             messId.length > 12 ? '${messId.substring(0, 12)}...' : messId,
           ),
           _row('Status', isActive ? 'Active' : 'Inactive'),
-          const Spacer(),
+          const SizedBox(height: 10),
           Row(
-            mainAxisAlignment: MainAxisAlignment.end,
             children: [
-              TextButton.icon(
-                onPressed: () => _viewDetail(context),
-                icon: const Icon(Icons.visibility_outlined, size: 14),
-                label: const Text(
-                  'View Details',
-                  style: TextStyle(fontSize: 12),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => _viewDetail(context),
+                  icon: const Icon(Icons.visibility_outlined, size: 13),
+                  label: const Text('Details', style: TextStyle(fontSize: 11)),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    visualDensity: VisualDensity.compact,
+                  ),
                 ),
               ),
               const SizedBox(width: 8),
-              TextButton.icon(
-                style: TextButton.styleFrom(foregroundColor: Colors.red),
-                onPressed: () => _deleteMess(context),
-                icon: const Icon(Icons.delete_outline, size: 14),
-                label: const Text('Delete', style: TextStyle(fontSize: 12)),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => _deleteMess(context),
+                  icon: const Icon(Icons.delete_outline, size: 13),
+                  label: const Text('Delete', style: TextStyle(fontSize: 11)),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.red,
+                    side: const BorderSide(color: Colors.red),
+                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ),
               ),
             ],
           ),

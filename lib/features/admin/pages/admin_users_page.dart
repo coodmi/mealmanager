@@ -17,77 +17,104 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(16),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Search + filter bar
+          // Search + filter
           AdminCard(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             child: Row(
               children: [
                 Expanded(
                   child: TextField(
                     decoration: const InputDecoration(
                       hintText: 'Search by name, email, phone...',
-                      prefixIcon: Icon(Icons.search, size: 20),
+                      prefixIcon: Icon(
+                        Icons.search,
+                        size: 18,
+                        color: AppColors.textLight,
+                      ),
                       border: InputBorder.none,
                       isDense: true,
+                      hintStyle: TextStyle(
+                        fontSize: 13,
+                        color: AppColors.textLight,
+                      ),
                     ),
+                    style: const TextStyle(fontSize: 13),
                     onChanged: (v) => setState(() => _search = v.toLowerCase()),
                   ),
                 ),
-                const SizedBox(width: 12),
-                DropdownButton<String>(
-                  value: _filterStatus,
-                  underline: const SizedBox(),
-                  items: const [
-                    DropdownMenuItem(value: 'all', child: Text('All')),
-                    DropdownMenuItem(value: 'active', child: Text('Active')),
-                    DropdownMenuItem(value: 'blocked', child: Text('Blocked')),
-                  ],
-                  onChanged: (v) => setState(() => _filterStatus = v!),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF0F2F5),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      value: _filterStatus,
+                      isDense: true,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textDark,
+                      ),
+                      items: const [
+                        DropdownMenuItem(value: 'all', child: Text('All')),
+                        DropdownMenuItem(
+                          value: 'active',
+                          child: Text('Active'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'blocked',
+                          child: Text('Blocked'),
+                        ),
+                      ],
+                      onChanged: (v) => setState(() => _filterStatus = v!),
+                    ),
+                  ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
           Expanded(
-            child: AdminCard(
-              padding: EdgeInsets.zero,
-              child: StreamBuilder<QuerySnapshot>(
-                stream: FirebaseFirestore.instance
-                    .collection('users')
-                    .snapshots(),
-                builder: (context, snap) {
-                  if (!snap.hasData)
-                    return const Center(child: CircularProgressIndicator());
-                  var docs = snap.data!.docs;
+            child: StreamBuilder<QuerySnapshot>(
+              stream: FirebaseFirestore.instance
+                  .collection('users')
+                  .snapshots(),
+              builder: (context, snap) {
+                if (!snap.hasData)
+                  return const Center(child: CircularProgressIndicator());
+                var docs = snap.data!.docs;
 
-                  // Filter
-                  docs = docs.where((doc) {
-                    final d = doc.data() as Map<String, dynamic>;
-                    final name = (d['name'] as String? ?? '').toLowerCase();
-                    final email = (d['email'] as String? ?? '').toLowerCase();
-                    final mobile = (d['mobile'] as String? ?? '').toLowerCase();
-                    final blocked = d['isBlocked'] == true;
+                docs = docs.where((doc) {
+                  final d = doc.data() as Map<String, dynamic>;
+                  final name = (d['name'] as String? ?? '').toLowerCase();
+                  final email = (d['email'] as String? ?? '').toLowerCase();
+                  final mobile = (d['mobile'] as String? ?? '').toLowerCase();
+                  final blocked = d['isBlocked'] == true;
+                  if (_search.isNotEmpty &&
+                      !name.contains(_search) &&
+                      !email.contains(_search) &&
+                      !mobile.contains(_search))
+                    return false;
+                  if (_filterStatus == 'blocked' && !blocked) return false;
+                  if (_filterStatus == 'active' && blocked) return false;
+                  return true;
+                }).toList();
 
-                    if (_search.isNotEmpty &&
-                        !name.contains(_search) &&
-                        !email.contains(_search) &&
-                        !mobile.contains(_search))
-                      return false;
-                    if (_filterStatus == 'blocked' && !blocked) return false;
-                    if (_filterStatus == 'active' && blocked) return false;
-                    return true;
-                  }).toList();
-
-                  return Column(
+                return AdminCard(
+                  padding: EdgeInsets.zero,
+                  child: Column(
                     children: [
                       // Header
                       Container(
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 20,
+                          horizontal: 16,
                           vertical: 12,
                         ),
                         decoration: const BoxDecoration(
@@ -98,12 +125,22 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
                         ),
                         child: Row(
                           children: [
-                            _th('User', flex: 3),
-                            _th('Contact', flex: 3),
-                            _th('Role', flex: 2),
-                            _th('Status', flex: 2),
-                            _th('Joined', flex: 2),
-                            _th('Actions', flex: 2),
+                            const Expanded(
+                              flex: 4,
+                              child: Text('User', style: _hStyle),
+                            ),
+                            const Expanded(
+                              flex: 3,
+                              child: Text('Role', style: _hStyle),
+                            ),
+                            const Expanded(
+                              flex: 3,
+                              child: Text('Status', style: _hStyle),
+                            ),
+                            const Expanded(
+                              flex: 3,
+                              child: Text('Actions', style: _hStyle),
+                            ),
                           ],
                         ),
                       ),
@@ -115,24 +152,24 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
                           itemBuilder: (context, i) {
                             final doc = docs[i];
                             final d = doc.data() as Map<String, dynamic>;
-                            return _UserRow(uid: doc.id, data: d);
+                            return _UserTile(uid: doc.id, data: d);
                           },
                         ),
                       ),
                       Padding(
-                        padding: const EdgeInsets.all(12),
+                        padding: const EdgeInsets.symmetric(vertical: 10),
                         child: Text(
                           '${docs.length} users',
                           style: const TextStyle(
-                            fontSize: 12,
+                            fontSize: 11,
                             color: AppColors.textLight,
                           ),
                         ),
                       ),
                     ],
-                  );
-                },
-              ),
+                  ),
+                );
+              },
             ),
           ),
         ],
@@ -140,49 +177,37 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
     );
   }
 
-  Widget _th(String label, {int flex = 1}) {
-    return Expanded(
-      flex: flex,
-      child: Text(
-        label,
-        style: const TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.bold,
-          color: AppColors.textLight,
-        ),
-      ),
-    );
-  }
+  static const _hStyle = TextStyle(
+    fontSize: 11,
+    fontWeight: FontWeight.bold,
+    color: AppColors.textLight,
+  );
 }
 
-class _UserRow extends StatelessWidget {
+class _UserTile extends StatelessWidget {
   final String uid;
   final Map<String, dynamic> data;
-  const _UserRow({required this.uid, required this.data});
+  const _UserTile({required this.uid, required this.data});
 
   @override
   Widget build(BuildContext context) {
     final name = data['name'] as String? ?? '—';
-    final email = data['email'] as String? ?? '—';
-    final mobile = data['mobile'] as String? ?? '—';
+    final email = data['email'] as String? ?? '';
+    final mobile = data['mobile'] as String? ?? '';
     final role = data['role'] as String? ?? 'member';
     final blocked = data['isBlocked'] == true;
-    final ts = data['createdAt'] as Timestamp?;
-    final joined = ts != null
-        ? '${ts.toDate().day}/${ts.toDate().month}/${ts.toDate().year}'
-        : '—';
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       child: Row(
         children: [
-          // User
+          // User info
           Expanded(
-            flex: 3,
+            flex: 4,
             child: Row(
               children: [
                 CircleAvatar(
-                  radius: 16,
+                  radius: 18,
                   backgroundColor: AppColors.primaryGreen.withValues(
                     alpha: 0.15,
                   ),
@@ -190,54 +215,44 @@ class _UserRow extends StatelessWidget {
                     name.isNotEmpty ? name[0].toUpperCase() : '?',
                     style: const TextStyle(
                       color: AppColors.primaryGreen,
-                      fontSize: 12,
+                      fontSize: 13,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 10),
                 Expanded(
-                  child: Text(
-                    name,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          // Contact
-          Expanded(
-            flex: 3,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  email,
-                  style: const TextStyle(
-                    fontSize: 11,
-                    color: AppColors.textLight,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-                Text(
-                  mobile,
-                  style: const TextStyle(
-                    fontSize: 11,
-                    color: AppColors.textLight,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        name,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textDark,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      Text(
+                        email.isNotEmpty ? email : mobile,
+                        style: const TextStyle(
+                          fontSize: 10,
+                          color: AppColors.textLight,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
                   ),
                 ),
               ],
             ),
           ),
           // Role
-          Expanded(flex: 2, child: _RoleBadge(role: role)),
+          Expanded(flex: 3, child: _RoleBadge(role: role)),
           // Status
           Expanded(
-            flex: 2,
+            flex: 3,
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
@@ -246,43 +261,50 @@ class _UserRow extends StatelessWidget {
                     : Colors.green.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(20),
               ),
-              child: Text(
-                blocked ? 'Blocked' : 'Active',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: blocked ? Colors.red : Colors.green,
-                ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 6,
+                    height: 6,
+                    decoration: BoxDecoration(
+                      color: blocked ? Colors.red : Colors.green,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 5),
+                  Text(
+                    blocked ? 'Blocked' : 'Active',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: blocked ? Colors.red : Colors.green,
+                    ),
+                  ),
+                ],
               ),
-            ),
-          ),
-          // Joined
-          Expanded(
-            flex: 2,
-            child: Text(
-              joined,
-              style: const TextStyle(fontSize: 12, color: AppColors.textLight),
             ),
           ),
           // Actions
           Expanded(
-            flex: 2,
+            flex: 3,
             child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                _ActionBtn(
+                _Btn(
                   Icons.visibility_outlined,
                   Colors.blue,
                   () => _viewUser(context),
                 ),
                 const SizedBox(width: 4),
-                _ActionBtn(
-                  blocked ? Icons.lock_open : Icons.block,
+                _Btn(
+                  blocked ? Icons.lock_open_rounded : Icons.block_rounded,
                   blocked ? Colors.green : Colors.orange,
-                  () => _toggleBlock(context, blocked),
+                  () => _toggleBlock(blocked),
                 ),
                 const SizedBox(width: 4),
-                _ActionBtn(
-                  Icons.delete_outline,
+                _Btn(
+                  Icons.delete_outline_rounded,
                   Colors.red,
                   () => _deleteUser(context),
                 ),
@@ -297,75 +319,146 @@ class _UserRow extends StatelessWidget {
   void _viewUser(BuildContext context) {
     showDialog(
       context: context,
-      builder: (_) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text(data['name'] as String? ?? 'User'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _infoRow('UID', uid),
-            _infoRow('Email', data['email'] as String? ?? '—'),
-            _infoRow('Mobile', data['mobile'] as String? ?? '—'),
-            _infoRow('Role', data['role'] as String? ?? '—'),
-            _infoRow('Mess ID', data['messId'] as String? ?? 'None'),
-            _infoRow(
-              'Status',
-              data['isBlocked'] == true ? 'Blocked' : 'Active',
-            ),
-          ],
+      builder: (_) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: Container(
+          width: 380,
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircleAvatar(
+                radius: 32,
+                backgroundColor: AppColors.primaryGreen.withValues(alpha: 0.15),
+                child: Text(
+                  (data['name'] as String? ?? '?').isNotEmpty
+                      ? (data['name'] as String)[0].toUpperCase()
+                      : '?',
+                  style: const TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.primaryGreen,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                data['name'] as String? ?? '—',
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 4),
+              _RoleBadge(role: data['role'] as String? ?? 'member'),
+              const SizedBox(height: 20),
+              _infoTile(
+                Icons.email_outlined,
+                'Email',
+                data['email'] as String? ?? '—',
+              ),
+              _infoTile(
+                Icons.phone_outlined,
+                'Mobile',
+                data['mobile'] as String? ?? '—',
+              ),
+              _infoTile(
+                Icons.home_work_outlined,
+                'Mess ID',
+                data['messId'] as String? ?? 'None',
+              ),
+              _infoTile(Icons.fingerprint, 'UID', uid),
+              const SizedBox(height: 20),
+              // Role change
+              Row(
+                children: [
+                  const Text(
+                    'Change Role:',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: DropdownButtonFormField<String>(
+                      value: data['role'] as String? ?? 'member',
+                      isDense: true,
+                      decoration: InputDecoration(
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 8,
+                        ),
+                      ),
+                      items:
+                          [
+                                'member',
+                                'manager',
+                                'supportAdmin',
+                                'contentAdmin',
+                                'systemAdmin',
+                                'superAdmin',
+                              ]
+                              .map(
+                                (r) => DropdownMenuItem(
+                                  value: r,
+                                  child: Text(
+                                    r,
+                                    style: const TextStyle(fontSize: 12),
+                                  ),
+                                ),
+                              )
+                              .toList(),
+                      onChanged: (role) async {
+                        await FirebaseFirestore.instance
+                            .collection('users')
+                            .doc(uid)
+                            .update({'role': role});
+                        if (context.mounted) Navigator.pop(context);
+                      },
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Close'),
+                ),
+              ),
+            ],
+          ),
         ),
-        actions: [
-          // Role upgrade
-          PopupMenuButton<String>(
-            child: const Chip(label: Text('Change Role')),
-            itemBuilder: (_) => [
-              'member',
-              'manager',
-              'supportAdmin',
-              'contentAdmin',
-              'superAdmin',
-            ].map((r) => PopupMenuItem(value: r, child: Text(r))).toList(),
-            onSelected: (role) async {
-              await FirebaseFirestore.instance
-                  .collection('users')
-                  .doc(uid)
-                  .update({'role': role});
-              if (context.mounted) Navigator.pop(context);
-            },
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
-          ),
-        ],
       ),
     );
   }
 
-  Widget _infoRow(String label, String value) {
+  Widget _infoTile(IconData icon, String label, String value) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.only(bottom: 8),
       child: Row(
         children: [
-          SizedBox(
-            width: 70,
+          Icon(icon, size: 15, color: AppColors.primaryGreen),
+          const SizedBox(width: 8),
+          Text(
+            '$label: ',
+            style: const TextStyle(fontSize: 12, color: AppColors.textLight),
+          ),
+          Expanded(
             child: Text(
-              '$label:',
-              style: const TextStyle(
-                fontWeight: FontWeight.w600,
-                fontSize: 12,
-                color: AppColors.textLight,
-              ),
+              value,
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+              overflow: TextOverflow.ellipsis,
             ),
           ),
-          Expanded(child: Text(value, style: const TextStyle(fontSize: 12))),
         ],
       ),
     );
   }
 
-  Future<void> _toggleBlock(BuildContext context, bool currentlyBlocked) async {
+  Future<void> _toggleBlock(bool currentlyBlocked) async {
     await FirebaseFirestore.instance.collection('users').doc(uid).update({
       'isBlocked': !currentlyBlocked,
     });
@@ -375,8 +468,9 @@ class _UserRow extends StatelessWidget {
     final ok = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text('Delete User'),
-        content: const Text('This will permanently delete the user. Continue?'),
+        content: const Text('Permanently delete this user?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -436,24 +530,24 @@ class _RoleBadge extends StatelessWidget {
   }
 }
 
-class _ActionBtn extends StatelessWidget {
+class _Btn extends StatelessWidget {
   final IconData icon;
   final Color color;
   final VoidCallback onTap;
-  const _ActionBtn(this.icon, this.color, this.onTap);
+  const _Btn(this.icon, this.color, this.onTap);
 
   @override
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(6),
+      borderRadius: BorderRadius.circular(7),
       child: Container(
-        padding: const EdgeInsets.all(5),
+        padding: const EdgeInsets.all(6),
         decoration: BoxDecoration(
           color: color.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(6),
+          borderRadius: BorderRadius.circular(7),
         ),
-        child: Icon(icon, size: 15, color: color),
+        child: Icon(icon, size: 14, color: color),
       ),
     );
   }

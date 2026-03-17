@@ -8,8 +8,10 @@ import '../../features/mess/presentation/pages/pending_approval_page.dart';
 import '../../features/dashboard/presentation/pages/dashboard_page.dart';
 import '../../features/setup/setup_page.dart';
 import '../../features/admin/admin_shell.dart';
+import '../../features/splash/splash_page.dart';
 
 class AppRouter {
+  static const String splash = '/splash';
   static const String login = '/';
   static const String otpVerification = '/otp-verification';
   static const String createJoinMess = '/create-join-mess';
@@ -19,21 +21,19 @@ class AppRouter {
   static const String admin = '/admin';
 
   static final GoRouter router = GoRouter(
-    initialLocation: dashboard,
+    initialLocation: splash,
     redirect: (context, state) async {
-      final user = FirebaseAuth.instance.currentUser;
       final loc = state.matchedLocation;
-
-      // Always allow OTP verification through
+      // Let splash handle its own navigation
+      if (loc == splash) return null;
       if (loc == otpVerification) return null;
 
-      // Not logged in → login
+      final user = FirebaseAuth.instance.currentUser;
       if (user == null) {
         if (loc == login) return null;
         return login;
       }
 
-      // Check joinStatus for logged-in users going to dashboard
       if (loc == dashboard) {
         try {
           final userDoc = await FirebaseFirestore.instance
@@ -48,6 +48,7 @@ class AppRouter {
       return null;
     },
     routes: [
+      GoRoute(path: splash, builder: (context, state) => const SplashPage()),
       GoRoute(path: login, builder: (context, state) => const LoginPage()),
       GoRoute(
         path: otpVerification,
