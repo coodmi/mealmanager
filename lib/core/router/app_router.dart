@@ -7,6 +7,7 @@ import '../../features/mess/presentation/pages/create_join_mess_page.dart';
 import '../../features/mess/presentation/pages/pending_approval_page.dart';
 import '../../features/dashboard/presentation/pages/dashboard_page.dart';
 import '../../features/setup/setup_page.dart';
+import '../../features/admin/admin_shell.dart';
 
 class AppRouter {
   static const String login = '/';
@@ -15,6 +16,7 @@ class AppRouter {
   static const String pendingApproval = '/pending-approval';
   static const String dashboard = '/dashboard';
   static const String setup = '/setup';
+  static const String admin = '/admin';
 
   static final GoRouter router = GoRouter(
     initialLocation: dashboard,
@@ -64,6 +66,27 @@ class AppRouter {
         builder: (context, state) => const DashboardPage(),
       ),
       GoRoute(path: setup, builder: (context, state) => const SetupPage()),
+      GoRoute(
+        path: admin,
+        builder: (context, state) => const AdminShell(),
+        redirect: (context, state) async {
+          final user = FirebaseAuth.instance.currentUser;
+          if (user == null) return login;
+          final doc = await FirebaseFirestore.instance
+              .collection('users')
+              .doc(user.uid)
+              .get();
+          final role = doc.data()?['role'] as String? ?? 'member';
+          final isAdmin =
+              role == 'manager' ||
+              role == 'superAdmin' ||
+              role == 'systemAdmin' ||
+              role == 'supportAdmin' ||
+              role == 'contentAdmin';
+          if (!isAdmin) return dashboard;
+          return null;
+        },
+      ),
     ],
   );
 }

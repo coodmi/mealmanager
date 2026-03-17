@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:go_router/go_router.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../expense/presentation/pages/expense_entry_page.dart';
 import '../../../withdraw/presentation/pages/withdraw_request_page.dart';
@@ -70,6 +71,15 @@ class _MenuPageState extends State<MenuPage> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          if (_isManager)
+            _item(
+              context,
+              '🛡️  Admin Panel',
+              Icons.admin_panel_settings_rounded,
+              Colors.deepPurple,
+              () => context.push('/admin'),
+            ),
+          if (_isManager) const SizedBox(height: 14),
           _section('Mess Management', [
             _item(
               context,
