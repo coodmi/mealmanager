@@ -64,9 +64,8 @@ jobs:
         with:
           appId: ${{ secrets.FIREBASE_APP_ID_ANDROID }}
           serviceCredentialsFileContent: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-          groups: testers
           file: build/app/outputs/flutter-apk/app-release.apk
-          releaseNotes: Build pushed to testers
+          releaseNotes: Build ${{ github.run_number }}
 
   build_web:
     runs-on: ubuntu-latest
