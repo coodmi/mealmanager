@@ -1,0 +1,84 @@
+╔══════════════════════════════════════════════════════════════╗
+║              🔙 GO BACK TO LOGIN SCREEN                      ║
+╚══════════════════════════════════════════════════════════════╝
+
+You're currently on the Dashboard page (preview).
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🔙 HOW TO GO BACK:
+
+Method 1: Press Back Button
+┌────────────────────────────────────────────────────────────┐
+│ On Emulator: Press ESC key                                 │
+│ Or: Click the back arrow ← in the emulator                │
+│                                                            │
+│ Keep pressing until you see Login/Register screen         │
+└────────────────────────────────────────────────────────────┘
+
+Method 2: Restart App
+┌────────────────────────────────────────────────────────────┐
+│ In terminal, press: R (capital R)                          │
+│ App will restart at Login screen                           │
+└────────────────────────────────────────────────────────────┘
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🧪 THEN TEST OTP PROPERLY:
+
+1. You should see: Login/Register tabs
+2. Click: "Register" tab
+3. Fill form with your details
+4. Click: "Sign Up"
+5. See: Popup with OTP
+6. Click: "Continue to Verification"
+7. Enter: The OTP from popup
+8. Click: "Verify"
+9. Success! → Back to Login
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📱 WHAT YOU'RE SEEING NOW:
+
+Dashboard Page (Preview):
+  - Ma Chatrabash header
+  - Today's Mess Meal: 8, 12, 10
+  - Bazar Schedule: Karim Ahmed
+  - Bottom navigation
+
+This is a PREVIEW of the full app.
+You'll see this AFTER you complete registration.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+⚠️  DON'T CLICK "LOGIN" BUTTON YET!
+
+The Login button is for AFTER you've:
+  1. Registered
+  2. Verified OTP
+  3. Created/Joined a mess
+
+Right now, just test the REGISTRATION flow.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🚀 QUICK STEPS:
+
+1. Press ESC key (go back)
+2. See Login/Register screen
+3. Click "Register" tab
+4. Fill form
+5. Click "Sign Up"
+6. See OTP popup
+7. Test verification
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✅ SUMMARY:
+
+Current: Dashboard (preview)
+Action: Press ESC or Back button
+Goal: Get to Login/Register screen
+Then: Test OTP registration
+
+Just press ESC now! 🔙

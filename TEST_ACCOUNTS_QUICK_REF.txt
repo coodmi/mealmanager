@@ -1,0 +1,57 @@
+TEST ACCOUNTS - QUICK REFERENCE
+
+═══════════════════════════════════════════════════════════════
+
+ACCOUNT 1: SUPER ADMIN
+─────────────────────
+  Email:    superadmin@mealmanager.com
+  Password: SuperAdmin@123
+  Name:     Super Admin
+  Phone:    +880-1700-000001
+  Role:     super_admin
+  Access:   Full access to all features
+
+═══════════════════════════════════════════════════════════════
+
+ACCOUNT 2: NORMAL USER
+──────────────────────
+  Email:    user@mealmanager.com
+  Password: NormalUser@123
+  Name:     Rahul Kumar
+  Phone:    +880-1700-000002
+  Role:     member
+  Access:   Join/manage mess, view balance
+
+═══════════════════════════════════════════════════════════════
+
+ACCOUNT 3: MESS ADMIN
+─────────────────────
+  Email:    messadmin@mealmanager.com
+  Password: MessAdmin@123
+  Name:     Karim Ahmed
+  Phone:    +880-1700-000003
+  Role:     mess_admin
+  Access:   Manage mess members and transactions
+
+═══════════════════════════════════════════════════════════════
+
+PASSWORD REQUIREMENTS:
+✓ Minimum 8 characters
+✓ At least 1 UPPERCASE letter
+✓ At least 1 lowercase letter
+✓ At least 1 Number
+✓ At least 1 Special character (@#$%^&*)
+
+═══════════════════════════════════════════════════════════════
+
+QUICK LOGIN STEPS:
+1. Open Meal Manager app
+2. Click "Account" in bottom navigation
+3. Enter email and password
+4. Click Login
+5. Verify profile shows correct role
+
+═══════════════════════════════════════════════════════════════
+
+For detailed information, see: TEST_ACCOUNTS.md
+

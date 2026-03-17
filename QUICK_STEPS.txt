@@ -1,0 +1,116 @@
+╔══════════════════════════════════════════════════════════════╗
+║           📧 UPDATE YOUR TEMPLATE - 3 STEPS                  ║
+╚══════════════════════════════════════════════════════════════╝
+
+You're on the right page! Now just 3 quick steps:
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+STEP 1: UPDATE SUBJECT (30 seconds)
+┌────────────────────────────────────────────────────────────┐
+│ Current: "OTP for your {Company Name} authentication"     │
+│                                                            │
+│ Change to: "Meal Manager - Your OTP Code"                 │
+└────────────────────────────────────────────────────────────┘
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+STEP 2: UPDATE EMAIL BODY (1 minute)
+┌────────────────────────────────────────────────────────────┐
+│ 1. Click "Edit Content" button (✏️ icon)                  │
+│ 2. Select ALL current HTML content                        │
+│ 3. Delete it                                               │
+│ 4. Open file: COPY_THIS_TEMPLATE.html                     │
+│ 5. Copy EVERYTHING from that file                         │
+│ 6. Paste into EmailJS editor                              │
+└────────────────────────────────────────────────────────────┘
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+STEP 3: FIX "TO EMAIL" VARIABLE (30 seconds)
+┌────────────────────────────────────────────────────────────┐
+│ In the right panel:                                        │
+│                                                            │
+│ "To Email" field shows: {{email}}                         │
+│                                                            │
+│ Change to: {{to_email}}                                    │
+│                                                            │
+│ (This matches what our Flutter code sends)                │
+└────────────────────────────────────────────────────────────┘
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+STEP 4: SAVE! (5 seconds)
+┌────────────────────────────────────────────────────────────┐
+│ Click the blue "Save" button (top right)                  │
+└────────────────────────────────────────────────────────────┘
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🧪 TEST IT!
+
+Option 1: Quick Test in Dashboard
+┌────────────────────────────────────────────────────────────┐
+│ 1. Click "Test It" button (top right)                     │
+│ 2. Fill in:                                                │
+│    - to_name: Test User                                    │
+│    - to_email: your-email@gmail.com                        │
+│    - otp_code: 123456                                      │
+│ 3. Click "Send Test"                                       │
+│ 4. Check your inbox!                                       │
+└────────────────────────────────────────────────────────────┘
+
+Option 2: Test in App
+┌────────────────────────────────────────────────────────────┐
+│ $ flutter run                                              │
+│                                                            │
+│ Then register with your real email!                       │
+└────────────────────────────────────────────────────────────┘
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📧 WHAT YOU'LL RECEIVE:
+
+Subject: Meal Manager - Your OTP Code
+
+┌─────────────────────────────────────────────┐
+│         🍽️ Meal Manager                     │
+└─────────────────────────────────────────────┘
+
+Hello Test User!
+
+Welcome to Meal Manager. Your OTP for 
+registration is:
+
+        1 2 3 4 5 6
+
+⏰ This OTP is valid for 10 minutes.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📂 FILES TO USE:
+
+Main File:          COPY_THIS_TEMPLATE.html  ← Copy from here!
+Instructions:       UPDATE_YOUR_TEMPLATE.md
+This Guide:         QUICK_STEPS.txt
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+⏱️  TOTAL TIME: ~2 minutes
+
+✅ Your code is ready
+✅ Your credentials are configured
+⏳ Just update the template
+🎉 Then test!
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🚀 YOU'RE ALMOST DONE!
+
+Open: COPY_THIS_TEMPLATE.html
+Copy: Everything
+Paste: In EmailJS
+Save: Click Save button
+Test: Send test email
+
+That's it! 🎉

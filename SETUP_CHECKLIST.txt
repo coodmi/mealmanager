@@ -1,0 +1,200 @@
+╔══════════════════════════════════════════════════════════════╗
+║        REAL OTP EMAIL SETUP - CHECKLIST                      ║
+╚══════════════════════════════════════════════════════════════╝
+
+📋 SETUP CHECKLIST
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+STEP 1: CREATE EMAILJS ACCOUNT
+┌────────────────────────────────────────────────────────────┐
+│ [ ] Go to https://www.emailjs.com/                        │
+│ [ ] Click "Sign Up"                                        │
+│ [ ] Sign up with Google (recommended)                      │
+│ [ ] Verify email address                                   │
+│ [ ] Login to dashboard                                     │
+└────────────────────────────────────────────────────────────┘
+
+STEP 2: CONNECT GMAIL SERVICE
+┌────────────────────────────────────────────────────────────┐
+│ [ ] Click "Email Services" (left sidebar)                 │
+│ [ ] Click "Add New Service"                               │
+│ [ ] Select "Gmail"                                         │
+│ [ ] Click "Connect Account"                               │
+│ [ ] Sign in with: MealManagerApps@gmail.com               │
+│ [ ] Allow all permissions                                  │
+│ [ ] Copy Service ID: service_____________                 │
+│ [ ] Save Service ID somewhere safe                         │
+└────────────────────────────────────────────────────────────┘
+
+STEP 3: CREATE EMAIL TEMPLATE
+┌────────────────────────────────────────────────────────────┐
+│ [ ] Click "Email Templates" (left sidebar)                │
+│ [ ] Click "Create New Template"                           │
+│ [ ] Name: "Meal Manager OTP"                              │
+│ [ ] Subject: "Meal Manager - Your OTP Code"               │
+│ [ ] Copy HTML template from EMAILJS_VISUAL_GUIDE.md       │
+│ [ ] Paste in body section                                  │
+│ [ ] Verify variables: to_name, to_email, otp_code         │
+│ [ ] Click "Save"                                           │
+│ [ ] Copy Template ID: template_____________               │
+│ [ ] Save Template ID somewhere safe                        │
+└────────────────────────────────────────────────────────────┘
+
+STEP 4: GET PUBLIC KEY
+┌────────────────────────────────────────────────────────────┐
+│ [ ] Click profile icon (top right)                        │
+│ [ ] Select "Account"                                       │
+│ [ ] Go to "General" tab                                    │
+│ [ ] Find "Public Key" section                             │
+│ [ ] Copy Public Key: ____________________                 │
+│ [ ] Save Public Key somewhere safe                         │
+└────────────────────────────────────────────────────────────┘
+
+STEP 5: UPDATE FLUTTER CODE
+┌────────────────────────────────────────────────────────────┐
+│ [ ] Open: lib/core/services/email_service.dart            │
+│ [ ] Find lines 8-10                                        │
+│ [ ] Replace _serviceId with your Service ID               │
+│ [ ] Replace _templateId with your Template ID             │
+│ [ ] Replace _publicKey with your Public Key               │
+│ [ ] Save file (Ctrl+S or Cmd+S)                           │
+│ [ ] Verify no typos in IDs                                │
+└────────────────────────────────────────────────────────────┘
+
+STEP 6: TEST REAL EMAIL
+┌────────────────────────────────────────────────────────────┐
+│ [ ] Run: flutter pub get                                   │
+│ [ ] Run: flutter run                                       │
+│ [ ] Open app                                               │
+│ [ ] Click "Register" tab                                   │
+│ [ ] Fill form with REAL email address                     │
+│ [ ] Click "Sign Up"                                        │
+│ [ ] Check email inbox (including spam)                    │
+│ [ ] Find email from Meal Manager                          │
+│ [ ] Copy 6-digit OTP from email                           │
+│ [ ] Enter OTP in app                                       │
+│ [ ] Click "Verify"                                         │
+│ [ ] See success message                                    │
+│ [ ] Redirected to login screen                            │
+└────────────────────────────────────────────────────────────┘
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📝 YOUR IDS (Fill this out)
+
+Service ID:    service_________________________________
+
+Template ID:   template_________________________________
+
+Public Key:    __________________________________________
+
+Updated in:    lib/core/services/email_service.dart
+
+Date Setup:    ____/____/________
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✅ VERIFICATION CHECKLIST
+
+After setup, verify:
+
+[ ] EmailJS account active
+[ ] Gmail service connected (green checkmark in dashboard)
+[ ] Email template saved
+[ ] All 3 IDs copied correctly
+[ ] Code updated in email_service.dart
+[ ] File saved
+[ ] App restarted
+[ ] Registered with real email
+[ ] Email received in inbox (check spam too)
+[ ] OTP verified successfully
+[ ] No console warnings about demo mode
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🔍 TROUBLESHOOTING
+
+Problem: Still showing demo mode
+[ ] Check all 3 IDs are updated
+[ ] Verify no typos in IDs
+[ ] Make sure file is saved
+[ ] Restart app completely
+
+Problem: Email not received
+[ ] Check spam/junk folder
+[ ] Verify email address is correct
+[ ] Check EmailJS dashboard logs
+[ ] Wait 1-2 minutes (delivery delay)
+
+Problem: "Failed to send OTP"
+[ ] Verify Service ID is correct
+[ ] Verify Template ID is correct
+[ ] Verify Public Key is correct
+[ ] Check EmailJS dashboard for errors
+[ ] Ensure Gmail service is connected
+
+Problem: Template variables not working
+[ ] Check template has: to_name, to_email, otp_code
+[ ] Verify variable names match exactly
+[ ] Re-save template in EmailJS
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📚 DOCUMENTATION REFERENCE
+
+Quick Start:           START_HERE.md
+Visual Guide:          EMAILJS_VISUAL_GUIDE.md
+Detailed Setup:        EMAILJS_SETUP.md
+Alternative Methods:   BACKEND_SETUP.md
+Testing Guide:         QUICK_START.md
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🎯 SUCCESS CRITERIA
+
+You'll know it's working when:
+
+✅ Console shows: "✅ OTP sent successfully to user@example.com"
+✅ Email arrives in inbox within 1-2 minutes
+✅ Email has proper formatting with OTP code
+✅ OTP verification works in app
+✅ No demo mode warnings in console
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+⏱️  ESTIMATED TIME
+
+Step 1: Create Account        1 minute
+Step 2: Connect Gmail          1 minute
+Step 3: Create Template        2 minutes
+Step 4: Get Public Key         30 seconds
+Step 5: Update Code            30 seconds
+Step 6: Test                   30 seconds
+
+TOTAL:                         ~5 minutes
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🎉 COMPLETION
+
+[ ] All steps completed
+[ ] Real emails working
+[ ] OTP verification successful
+[ ] Ready for production!
+
+Date Completed: ____/____/________
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📞 SUPPORT
+
+EmailJS Dashboard:  https://dashboard.emailjs.com/
+EmailJS Docs:       https://www.emailjs.com/docs/
+EmailJS Support:    support@emailjs.com
+
+App Documentation:  See START_HERE.md
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Good luck! 🚀
