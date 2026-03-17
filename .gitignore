@@ -54,3 +54,6 @@ lib/firebase_options.dart
 # Firebase hosting
 .firebase/
 firebase-debug.log
+
+# Local secrets reference file
+GITHUB_SECRETS_VALUES.txt
