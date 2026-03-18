@@ -20,18 +20,85 @@ class _CreateJoinMessPageState extends State<CreateJoinMessPage> {
   final _messNameController = TextEditingController();
   final _addressController = TextEditingController();
   String? _selectedDistrict;
+  String? _selectedDivision;
   bool _isLoading = false;
 
-  final List<String> _districts = [
-    'Dhaka',
-    'Chittagong',
-    'Rajshahi',
-    'Khulna',
-    'Barisal',
-    'Sylhet',
-    'Rangpur',
-    'Mymensingh',
-  ];
+  // 8 Divisions with their districts (alphabetically sorted)
+  static const Map<String, List<String>> _divisionDistricts = {
+    'Barisal': [
+      'Barguna',
+      'Barisal',
+      'Bhola',
+      'Jhalokati',
+      'Patuakhali',
+      'Pirojpur',
+    ],
+    'Chittagong': [
+      'Bandarban',
+      'Brahmanbaria',
+      'Chandpur',
+      'Chattogram',
+      'Cox\'s Bazar',
+      'Cumilla',
+      'Feni',
+      'Khagrachhari',
+      'Lakshmipur',
+      'Noakhali',
+      'Rangamati',
+    ],
+    'Dhaka': [
+      'Dhaka',
+      'Faridpur',
+      'Gazipur',
+      'Gopalganj',
+      'Kishoreganj',
+      'Madaripur',
+      'Manikganj',
+      'Munshiganj',
+      'Narayanganj',
+      'Narsingdi',
+      'Rajbari',
+      'Shariatpur',
+      'Tangail',
+    ],
+    'Khulna': [
+      'Bagerhat',
+      'Chuadanga',
+      'Jessore',
+      'Jhenaidah',
+      'Khulna',
+      'Kushtia',
+      'Magura',
+      'Meherpur',
+      'Narail',
+      'Satkhira',
+    ],
+    'Mymensingh': ['Jamalpur', 'Mymensingh', 'Netrokona', 'Sherpur'],
+    'Rajshahi': [
+      'Bogura',
+      'Chapainawabganj',
+      'Joypurhat',
+      'Naogaon',
+      'Natore',
+      'Pabna',
+      'Rajshahi',
+      'Sirajganj',
+    ],
+    'Rangpur': [
+      'Dinajpur',
+      'Gaibandha',
+      'Kurigram',
+      'Lalmonirhat',
+      'Nilphamari',
+      'Panchagarh',
+      'Rangpur',
+      'Thakurgaon',
+    ],
+    'Sylhet': ['Habiganj', 'Moulvibazar', 'Sunamganj', 'Sylhet'],
+  };
+
+  List<String> get _filteredDistricts =>
+      _selectedDivision == null ? [] : _divisionDistricts[_selectedDivision]!;
 
   @override
   void dispose() {
@@ -45,7 +112,7 @@ class _CreateJoinMessPageState extends State<CreateJoinMessPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Create / Join Mess'),
+        title: const Text('Join / Create Mess'),
         actions: [
           IconButton(
             icon: const Icon(Icons.logout),
@@ -192,20 +259,35 @@ class _CreateJoinMessPageState extends State<CreateJoinMessPage> {
               ),
               const SizedBox(height: 16),
               DropdownButtonFormField<String>(
+                value: _selectedDivision,
+                decoration: const InputDecoration(labelText: 'Division'),
+                items: _divisionDistricts.keys
+                    .toList()
+                    .map((d) => DropdownMenuItem(value: d, child: Text(d)))
+                    .toList(),
+                onChanged: (value) => setState(() {
+                  _selectedDivision = value;
+                  _selectedDistrict = null; // reset district on division change
+                }),
+                validator: (v) => v == null ? 'Select a division' : null,
+              ),
+              const SizedBox(height: 16),
+              DropdownButtonFormField<String>(
                 value: _selectedDistrict,
-                decoration: const InputDecoration(labelText: 'Mess District'),
-                items: _districts.map((district) {
-                  return DropdownMenuItem(
-                    value: district,
-                    child: Text(district),
-                  );
-                }).toList(),
-                onChanged: (value) {
-                  setState(() {
-                    _selectedDistrict = value;
-                  });
-                },
-                validator: (value) => value == null ? 'Required' : null,
+                decoration: const InputDecoration(labelText: 'District'),
+                items: _filteredDistricts
+                    .map((d) => DropdownMenuItem(value: d, child: Text(d)))
+                    .toList(),
+                onChanged: _selectedDivision == null
+                    ? null
+                    : (value) => setState(() => _selectedDistrict = value),
+                validator: (v) => v == null ? 'Select a district' : null,
+                hint: Text(
+                  _selectedDivision == null
+                      ? 'Select division first'
+                      : 'Select district',
+                  style: const TextStyle(fontSize: 14),
+                ),
               ),
               const SizedBox(height: 16),
               SizedBox(
