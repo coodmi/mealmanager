@@ -27,6 +27,8 @@ class _LoginPageState extends State<LoginPage>
   final _registerPasswordController = TextEditingController();
 
   bool _isLoading = false;
+  bool _loginPasswordVisible = false;
+  bool _registerPasswordVisible = false;
 
   @override
   void initState() {
@@ -326,8 +328,20 @@ class _LoginPageState extends State<LoginPage>
                   vertical: 16,
                 ),
                 filled: false,
+                suffixIcon: IconButton(
+                  icon: Icon(
+                    _loginPasswordVisible
+                        ? Icons.visibility
+                        : Icons.visibility_off,
+                    color: AppColors.textLight,
+                    size: 20,
+                  ),
+                  onPressed: () => setState(
+                    () => _loginPasswordVisible = !_loginPasswordVisible,
+                  ),
+                ),
               ),
-              obscureText: true,
+              obscureText: !_loginPasswordVisible,
               validator: (value) => value?.isEmpty ?? true ? 'Required' : null,
             ),
           ),
@@ -537,7 +551,7 @@ class _LoginPageState extends State<LoginPage>
               child: TextFormField(
                 controller: _registerPasswordController,
                 decoration: InputDecoration(
-                  hintText: 'Password (3-10 characters)',
+                  hintText: 'Password (min 6 characters)',
                   hintStyle: TextStyle(
                     color: AppColors.textLight.withValues(alpha: 0.6),
                   ),
@@ -547,13 +561,24 @@ class _LoginPageState extends State<LoginPage>
                     vertical: 16,
                   ),
                   filled: false,
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      _registerPasswordVisible
+                          ? Icons.visibility
+                          : Icons.visibility_off,
+                      color: AppColors.textLight,
+                      size: 20,
+                    ),
+                    onPressed: () => setState(
+                      () =>
+                          _registerPasswordVisible = !_registerPasswordVisible,
+                    ),
+                  ),
                 ),
-                obscureText: true,
+                obscureText: !_registerPasswordVisible,
                 validator: (value) {
                   if (value?.isEmpty ?? true) return 'Required';
-                  if (value!.length < 3 || value.length > 10) {
-                    return '3-10 characters required';
-                  }
+                  if (value!.length < 6) return 'Minimum 6 characters required';
                   return null;
                 },
               ),
