@@ -167,17 +167,11 @@ class _LoginPageState extends State<LoginPage>
           child: Column(
             children: [
               const SizedBox(height: 60),
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: AppColors.primaryGreen.withValues(alpha: 0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: Image.asset(
-                  'assets/images/logo.png',
-                  width: 100,
-                  height: 100,
-                ),
+              Image.asset(
+                'assets/images/logo.png',
+                width: 130,
+                height: 130,
+                fit: BoxFit.contain,
               ),
               const SizedBox(height: 24),
               Text(

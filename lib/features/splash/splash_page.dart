@@ -170,8 +170,8 @@ class _SplashPageState extends State<SplashPage> with TickerProviderStateMixin {
                         children: [
                           // Outer glow ring
                           Container(
-                            width: 170,
-                            height: 170,
+                            width: 200,
+                            height: 200,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
                               color: AppColors.primaryGreen.withValues(
@@ -179,28 +179,22 @@ class _SplashPageState extends State<SplashPage> with TickerProviderStateMixin {
                               ),
                             ),
                           ),
-                          // White card circle
+                          // Logo image — no clipping container, logo has its own border
                           Container(
-                            width: 136,
-                            height: 136,
+                            width: 160,
+                            height: 160,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
-                              color: Colors.white,
                               boxShadow: [
                                 BoxShadow(
                                   color: AppColors.primaryGreen.withValues(
-                                    alpha: 0.22,
+                                    alpha: 0.18,
                                   ),
-                                  blurRadius: 32,
-                                  spreadRadius: 4,
+                                  blurRadius: 28,
+                                  spreadRadius: 2,
                                 ),
                               ],
                             ),
-                          ),
-                          // Logo image
-                          SizedBox(
-                            width: 90,
-                            height: 90,
                             child: Image.asset(
                               'assets/images/logo.png',
                               fit: BoxFit.contain,
