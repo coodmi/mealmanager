@@ -66,6 +66,7 @@ dependencies:
   printing: ^5.13.1
   url_launcher: ^6.3.1
   google_sign_in: ^6.2.1
+  firebase_auth_platform_interface: ^8.1.6
 
 dev_dependencies:
   flutter_test:
