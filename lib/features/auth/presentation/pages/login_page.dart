@@ -5,6 +5,7 @@ import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_strings.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../../core/services/auth_service.dart';
+import '../../../../core/services/firebase_auth_service.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -55,7 +56,8 @@ class _LoginPageState extends State<LoginPage>
     setState(() => _isLoading = true);
 
     try {
-      final result = await AuthService.registerUser(
+      // Direct registration — no OTP
+      final result = await FirebaseAuthService.registerUser(
         name: _registerNameController.text.trim(),
         mobile: _registerMobileController.text.trim(),
         email: _registerEmailController.text.trim(),
@@ -63,17 +65,24 @@ class _LoginPageState extends State<LoginPage>
       );
 
       setState(() => _isLoading = false);
-
       if (!mounted) return;
 
-      if (result['success']) {
-        if (!mounted) return;
-        // SMS OTP sent — navigate to verification page
-        context.go(AppRouter.otpVerification);
+      if (result['success'] == true) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Account created! Please login.'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        _tabController.animateTo(0);
+        _registerNameController.clear();
+        _registerMobileController.clear();
+        _registerEmailController.clear();
+        _registerPasswordController.clear();
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(result['message']),
+            content: Text(result['message'] ?? 'Registration failed'),
             backgroundColor: Colors.red,
           ),
         );
@@ -81,12 +90,10 @@ class _LoginPageState extends State<LoginPage>
     } catch (e) {
       setState(() => _isLoading = false);
       if (!mounted) return;
-
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(e.toString().replaceAll('Exception: ', '')),
           backgroundColor: Colors.red,
-          duration: const Duration(seconds: 5),
         ),
       );
     }
