@@ -787,19 +787,48 @@ class _MemberPageState extends State<MemberPage> {
                                     foundUser = null;
                                   });
                                   try {
-                                    final snap = await FirebaseFirestore
-                                        .instance
-                                        .collection('users')
-                                        .where('phone', isEqualTo: phone)
-                                        .limit(1)
-                                        .get();
+                                    // Normalize: try exact, also try with/without +88
+                                    String phone = phoneCtrl.text.trim();
+                                    List<String> variants = [phone];
+                                    if (phone.startsWith('0')) {
+                                      variants.add('+88$phone');
+                                    } else if (phone.startsWith('+88')) {
+                                      variants.add(phone.substring(3));
+                                    }
+
+                                    QuerySnapshot? snap;
+                                    for (final v in variants) {
+                                      final result = await FirebaseFirestore
+                                          .instance
+                                          .collection('users')
+                                          .where('mobile', isEqualTo: v)
+                                          .limit(1)
+                                          .get();
+                                      if (result.docs.isNotEmpty) {
+                                        snap = result;
+                                        break;
+                                      }
+                                    }
+                                    // Fallback: try legacy 'phone' field
+                                    if (snap == null || snap.docs.isEmpty) {
+                                      snap = await FirebaseFirestore.instance
+                                          .collection('users')
+                                          .where('phone', isEqualTo: phone)
+                                          .limit(1)
+                                          .get();
+                                    }
                                     if (snap.docs.isEmpty) {
                                       setS(() {
                                         isSearching = false;
                                         searchStatus = 'not_found';
                                       });
                                     } else {
-                                      final userData = snap.docs.first.data();
+                                      final userData =
+                                          Map<String, dynamic>.from(
+                                            snap.docs.first.data()
+                                                    as Map<String, dynamic>? ??
+                                                {},
+                                          );
                                       final existingMessId =
                                           userData['messId'] as String? ?? '';
                                       if (existingMessId == _messId) {
@@ -813,7 +842,7 @@ class _MemberPageState extends State<MemberPage> {
                                           searchStatus = 'found';
                                           foundUser = {
                                             ...userData,
-                                            'uid': snap.docs.first.id,
+                                            'uid': snap!.docs.first.id,
                                           };
                                         });
                                       }
@@ -891,7 +920,10 @@ class _MemberPageState extends State<MemberPage> {
                           final uid = foundUser!['uid'] as String;
                           final name =
                               foundUser!['name'] as String? ?? 'Member';
-                          final phone = foundUser!['phone'] as String? ?? '';
+                          final phone =
+                              foundUser!['mobile'] as String? ??
+                              foundUser!['phone'] as String? ??
+                              '';
                           final balance =
                               double.tryParse(balanceCtrl.text) ?? 0;
 
