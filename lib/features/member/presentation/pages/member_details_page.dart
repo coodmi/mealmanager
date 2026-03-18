@@ -1,11 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/services/firebase_mess_service.dart';
 
 class MemberDetailsPage extends StatefulWidget {
-  final Map<String, String> member;
+  final String memberId;
+  final String memberName;
 
-  const MemberDetailsPage({super.key, required this.member});
+  const MemberDetailsPage({
+    super.key,
+    required this.memberId,
+    required this.memberName,
+  });
 
   @override
   State<MemberDetailsPage> createState() => _MemberDetailsPageState();
@@ -14,42 +21,26 @@ class MemberDetailsPage extends StatefulWidget {
 class _MemberDetailsPageState extends State<MemberDetailsPage>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  bool _isLoading = true;
 
-  // Sample meal history data - এটা Firebase থেকে আসবে
-  final List<Map<String, dynamic>> _mealHistory = [
-    {'date': '2026-03-12', 'breakfast': 1, 'lunch': 1, 'dinner': 1, 'total': 3},
-    {'date': '2026-03-11', 'breakfast': 1, 'lunch': 1, 'dinner': 0, 'total': 2},
-    {'date': '2026-03-10', 'breakfast': 0, 'lunch': 1, 'dinner': 1, 'total': 2},
-    {'date': '2026-03-09', 'breakfast': 1, 'lunch': 1, 'dinner': 1, 'total': 3},
-    {'date': '2026-03-08', 'breakfast': 1, 'lunch': 0, 'dinner': 1, 'total': 2},
-  ];
+  // Member data
+  double _balance = 0;
+  String _phone = '';
+  bool _isActive = true;
 
-  // Sample transaction history
-  final List<Map<String, dynamic>> _transactions = [
-    {
-      'date': '2026-03-10',
-      'type': 'Deposit',
-      'amount': 3000,
-      'note': 'Monthly deposit',
-    },
-    {
-      'date': '2026-03-05',
-      'type': 'Expense',
-      'amount': -1500,
-      'note': 'Meal cost',
-    },
-    {
-      'date': '2026-02-28',
-      'type': 'Deposit',
-      'amount': 2000,
-      'note': 'Initial deposit',
-    },
-  ];
+  // Stats
+  int _totalMeals = 0;
+  double _totalDeposit = 0;
+
+  // Lists
+  List<Map<String, dynamic>> _meals = [];
+  List<Map<String, dynamic>> _transactions = [];
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _loadData();
   }
 
   @override
@@ -58,24 +49,162 @@ class _MemberDetailsPageState extends State<MemberDetailsPage>
     super.dispose();
   }
 
+  Future<void> _loadData() async {
+    try {
+      final messId = await FirebaseMessService.getMessId();
+      if (messId.isEmpty) return;
+
+      final now = DateTime.now();
+      final monthKey = '${now.year}-${now.month.toString().padLeft(2, '0')}';
+
+      // Member doc
+      final memberDoc = await FirebaseFirestore.instance
+          .collection('messes')
+          .doc(messId)
+          .collection('members')
+          .doc(widget.memberId)
+          .get();
+      final mData = memberDoc.data() ?? {};
+
+      // Meals this month
+      final mealsSnap = await FirebaseFirestore.instance
+          .collection('messes')
+          .doc(messId)
+          .collection('meals')
+          .where('memberId', isEqualTo: widget.memberId)
+          .where('monthKey', isEqualTo: monthKey)
+          .get();
+
+      // Transactions (deposits) for this member
+      final txSnap = await FirebaseFirestore.instance
+          .collection('messes')
+          .doc(messId)
+          .collection('transactions')
+          .where('memberId', isEqualTo: widget.memberId)
+          .get();
+
+      // Expenses where this member is included
+      final expSnap = await FirebaseFirestore.instance
+          .collection('messes')
+          .doc(messId)
+          .collection('expenses')
+          .where('monthKey', isEqualTo: monthKey)
+          .get();
+
+      double totalDeposit = 0;
+
+      final txList = <Map<String, dynamic>>[];
+      for (final d in txSnap.docs) {
+        final data = d.data();
+        final amt = (data['amount'] as num?)?.toDouble() ?? 0;
+        totalDeposit += amt;
+        txList.add({
+          'type': 'Deposit',
+          'amount': amt,
+          'note': data['method'] ?? 'Cash',
+          'date': data['createdAt'],
+        });
+      }
+
+      for (final d in expSnap.docs) {
+        final data = d.data();
+        final memberIds = List<String>.from(data['memberIds'] ?? []);
+        if (memberIds.contains(widget.memberId) || memberIds.isEmpty) {
+          final amt = (data['amount'] as num?)?.toDouble() ?? 0;
+          final share = memberIds.isNotEmpty ? amt / memberIds.length : amt;
+          txList.add({
+            'type': 'Expense',
+            'amount': -share,
+            'note': data['category'] ?? 'Expense',
+            'date': data['createdAt'],
+          });
+        }
+      }
+
+      // Sort transactions by date desc
+      txList.sort((a, b) {
+        final aDate = a['date'] as Timestamp?;
+        final bDate = b['date'] as Timestamp?;
+        if (aDate == null || bDate == null) return 0;
+        return bDate.compareTo(aDate);
+      });
+
+      // Group meals by date
+      final mealsByDate = <String, Map<String, dynamic>>{};
+      for (final d in mealsSnap.docs) {
+        final data = d.data();
+        final dateTs = data['date'] as Timestamp?;
+        if (dateTs == null) continue;
+        final dateStr = DateFormat('yyyy-MM-dd').format(dateTs.toDate());
+        mealsByDate.putIfAbsent(
+          dateStr,
+          () => {
+            'date': dateStr,
+            'breakfast': 0,
+            'lunch': 0,
+            'dinner': 0,
+            'total': 0,
+          },
+        );
+        final mealType = (data['mealType'] as String? ?? '').toLowerCase();
+        final count = (data['count'] as num?)?.toInt() ?? 1;
+        if (mealType == 'breakfast') {
+          mealsByDate[dateStr]!['breakfast'] =
+              (mealsByDate[dateStr]!['breakfast'] as int) + count;
+        } else if (mealType == 'lunch') {
+          mealsByDate[dateStr]!['lunch'] =
+              (mealsByDate[dateStr]!['lunch'] as int) + count;
+        } else if (mealType == 'dinner') {
+          mealsByDate[dateStr]!['dinner'] =
+              (mealsByDate[dateStr]!['dinner'] as int) + count;
+        }
+        mealsByDate[dateStr]!['total'] =
+            (mealsByDate[dateStr]!['total'] as int) + count;
+      }
+
+      final mealList = mealsByDate.values.toList()
+        ..sort((a, b) => (b['date'] as String).compareTo(a['date'] as String));
+
+      if (mounted) {
+        setState(() {
+          _balance = (mData['balance'] as num?)?.toDouble() ?? 0;
+          _phone = mData['phone'] as String? ?? '';
+          _isActive = mData['isActive'] as bool? ?? true;
+          _totalMeals = mealsSnap.docs.fold(
+            0,
+            (sum, d) => sum + ((d.data()['count'] as num?)?.toInt() ?? 1),
+          );
+          _totalDeposit = totalDeposit;
+          _meals = mealList;
+          _transactions = txList;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.bgColor,
-      body: Column(
-        children: [
-          _buildHeader(),
-          _buildMemberInfo(),
-          _buildStatsRow(),
-          _buildTabBar(),
-          Expanded(
-            child: TabBarView(
-              controller: _tabController,
-              children: [_buildMealHistoryTab(), _buildTransactionTab()],
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : Column(
+              children: [
+                _buildHeader(),
+                _buildMemberInfo(),
+                _buildStatsRow(),
+                _buildTabBar(),
+                Expanded(
+                  child: TabBarView(
+                    controller: _tabController,
+                    children: [_buildMealHistoryTab(), _buildTransactionTab()],
+                  ),
+                ),
+              ],
             ),
-          ),
-        ],
-      ),
     );
   }
 
@@ -100,11 +229,6 @@ class _MemberDetailsPageState extends State<MemberDetailsPage>
                   color: Colors.white,
                 ),
               ),
-              const Spacer(),
-              IconButton(
-                icon: const Icon(Icons.edit, color: Colors.white),
-                onPressed: () {},
-              ),
             ],
           ),
         ),
@@ -122,7 +246,11 @@ class _MemberDetailsPageState extends State<MemberDetailsPage>
             radius: 40,
             backgroundColor: Colors.white.withValues(alpha: 0.2),
             child: Text(
-              widget.member['name']!.split(' ').map((e) => e[0]).take(2).join(),
+              widget.memberName
+                  .split(' ')
+                  .map((e) => e.isNotEmpty ? e[0] : '')
+                  .take(2)
+                  .join(),
               style: const TextStyle(
                 fontSize: 28,
                 fontWeight: FontWeight.bold,
@@ -132,40 +260,38 @@ class _MemberDetailsPageState extends State<MemberDetailsPage>
           ),
           const SizedBox(height: 12),
           Text(
-            widget.member['name']!,
+            widget.memberName,
             style: const TextStyle(
               fontSize: 22,
               fontWeight: FontWeight.bold,
               color: Colors.white,
             ),
           ),
-          const SizedBox(height: 4),
-          Text(
-            widget.member['phone']!,
-            style: const TextStyle(fontSize: 14, color: Colors.white70),
-          ),
+          if (_phone.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              _phone,
+              style: const TextStyle(fontSize: 14, color: Colors.white70),
+            ),
+          ],
           const SizedBox(height: 8),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
             decoration: BoxDecoration(
-              color: widget.member['status'] == 'Active'
+              color: _isActive
                   ? Colors.green.withValues(alpha: 0.2)
                   : Colors.orange.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                color: widget.member['status'] == 'Active'
-                    ? Colors.green
-                    : Colors.orange,
+                color: _isActive ? Colors.green : Colors.orange,
               ),
             ),
             child: Text(
-              widget.member['status']!,
+              _isActive ? 'Active' : 'Inactive',
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
-                color: widget.member['status'] == 'Active'
-                    ? Colors.green
-                    : Colors.orange,
+                color: _isActive ? Colors.green : Colors.orange,
               ),
             ),
           ),
@@ -175,20 +301,6 @@ class _MemberDetailsPageState extends State<MemberDetailsPage>
   }
 
   Widget _buildStatsRow() {
-    final totalMeals = _mealHistory.fold(
-      0,
-      (sum, day) => sum + (day['total'] as int),
-    );
-    final mealRate = 45; // ৳45 per meal
-    final totalMealCost = totalMeals * mealRate;
-    final balance = int.parse(
-      widget.member['balance']!
-          .replaceAll('৳', '')
-          .replaceAll(',', '')
-          .replaceAll('-', ''),
-    );
-    final isNegative = widget.member['balance']!.contains('-');
-
     return Container(
       margin: const EdgeInsets.all(16),
       padding: const EdgeInsets.all(16),
@@ -203,37 +315,33 @@ class _MemberDetailsPageState extends State<MemberDetailsPage>
           ),
         ],
       ),
-      child: Column(
+      child: Row(
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: _buildStatItem(
-                  'Total Meals',
-                  totalMeals.toString(),
-                  Icons.restaurant,
-                  AppColors.primaryGreen,
-                ),
-              ),
-              Container(width: 1, height: 50, color: Colors.grey.shade300),
-              Expanded(
-                child: _buildStatItem(
-                  'Meal Cost',
-                  '৳$totalMealCost',
-                  Icons.payments,
-                  Colors.orange,
-                ),
-              ),
-              Container(width: 1, height: 50, color: Colors.grey.shade300),
-              Expanded(
-                child: _buildStatItem(
-                  'Balance',
-                  widget.member['balance']!,
-                  Icons.account_balance_wallet,
-                  isNegative ? Colors.red : Colors.green,
-                ),
-              ),
-            ],
+          Expanded(
+            child: _buildStatItem(
+              'Meals',
+              '$_totalMeals',
+              Icons.restaurant,
+              AppColors.primaryGreen,
+            ),
+          ),
+          Container(width: 1, height: 50, color: Colors.grey.shade300),
+          Expanded(
+            child: _buildStatItem(
+              'Deposit',
+              '৳${_totalDeposit.toStringAsFixed(0)}',
+              Icons.payments,
+              Colors.green,
+            ),
+          ),
+          Container(width: 1, height: 50, color: Colors.grey.shade300),
+          Expanded(
+            child: _buildStatItem(
+              'Balance',
+              '৳${_balance.toStringAsFixed(0)}',
+              Icons.account_balance_wallet,
+              _balance >= 0 ? Colors.green : Colors.red,
+            ),
           ),
         ],
       ),
@@ -253,7 +361,7 @@ class _MemberDetailsPageState extends State<MemberDetailsPage>
         Text(
           value,
           style: TextStyle(
-            fontSize: 18,
+            fontSize: 16,
             fontWeight: FontWeight.bold,
             color: color,
           ),
@@ -285,13 +393,20 @@ class _MemberDetailsPageState extends State<MemberDetailsPage>
   }
 
   Widget _buildMealHistoryTab() {
+    if (_meals.isEmpty) {
+      return const Center(
+        child: Text(
+          'No meals recorded this month',
+          style: TextStyle(color: AppColors.textLight),
+        ),
+      );
+    }
     return ListView.builder(
       padding: const EdgeInsets.all(16),
-      itemCount: _mealHistory.length,
+      itemCount: _meals.length,
       itemBuilder: (context, index) {
-        final day = _mealHistory[index];
-        final date = DateTime.parse(day['date']);
-
+        final day = _meals[index];
+        final date = DateTime.parse(day['date'] as String);
         return Container(
           margin: const EdgeInsets.only(bottom: 12),
           decoration: BoxDecoration(
@@ -344,7 +459,7 @@ class _MemberDetailsPageState extends State<MemberDetailsPage>
                       ),
                       child: Text(
                         '${day['total']} meals',
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.bold,
                           color: AppColors.primaryGreen,
@@ -359,19 +474,19 @@ class _MemberDetailsPageState extends State<MemberDetailsPage>
                   children: [
                     _buildMealBadge(
                       'Breakfast',
-                      day['breakfast'],
+                      day['breakfast'] as int,
                       Icons.free_breakfast,
                       Colors.orange,
                     ),
                     _buildMealBadge(
                       'Lunch',
-                      day['lunch'],
+                      day['lunch'] as int,
                       Icons.lunch_dining,
                       Colors.blue,
                     ),
                     _buildMealBadge(
                       'Dinner',
-                      day['dinner'],
+                      day['dinner'] as int,
                       Icons.dinner_dining,
                       Colors.purple,
                     ),
@@ -420,13 +535,23 @@ class _MemberDetailsPageState extends State<MemberDetailsPage>
   }
 
   Widget _buildTransactionTab() {
+    if (_transactions.isEmpty) {
+      return const Center(
+        child: Text(
+          'No transactions found',
+          style: TextStyle(color: AppColors.textLight),
+        ),
+      );
+    }
     return ListView.builder(
       padding: const EdgeInsets.all(16),
       itemCount: _transactions.length,
       itemBuilder: (context, index) {
-        final transaction = _transactions[index];
-        final date = DateTime.parse(transaction['date']);
-        final isDeposit = transaction['type'] == 'Deposit';
+        final tx = _transactions[index];
+        final isDeposit = tx['type'] == 'Deposit';
+        final amount = (tx['amount'] as double).abs();
+        final dateTs = tx['date'] as Timestamp?;
+        final date = dateTs != null ? dateTs.toDate() : DateTime.now();
 
         return Container(
           margin: const EdgeInsets.only(bottom: 12),
@@ -457,7 +582,7 @@ class _MemberDetailsPageState extends State<MemberDetailsPage>
               ),
             ),
             title: Text(
-              transaction['type'],
+              tx['type'] as String,
               style: const TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w600,
@@ -469,7 +594,7 @@ class _MemberDetailsPageState extends State<MemberDetailsPage>
               children: [
                 const SizedBox(height: 4),
                 Text(
-                  transaction['note'],
+                  tx['note'] as String,
                   style: const TextStyle(
                     fontSize: 13,
                     color: AppColors.textLight,
@@ -486,7 +611,7 @@ class _MemberDetailsPageState extends State<MemberDetailsPage>
               ],
             ),
             trailing: Text(
-              '৳${transaction['amount'].abs()}',
+              '৳${amount.toStringAsFixed(0)}',
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,

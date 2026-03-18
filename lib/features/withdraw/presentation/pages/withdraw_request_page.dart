@@ -33,91 +33,51 @@ class _WithdrawRequestPageState extends State<WithdrawRequestPage> {
   void initState() {
     super.initState();
     _loadData();
-    // Set a timeout to prevent infinite loading
-    Future.delayed(const Duration(seconds: 5), () {
-      if (mounted && _isLoading) {
-        setState(() {
-          _isLoading = false;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Could not load balance. Please try again.'),
-            backgroundColor: Colors.orange,
-          ),
-        );
-      }
-    });
   }
 
   Future<void> _loadData() async {
     try {
-      print('Loading withdraw data...');
       final messId = await FirebaseMessService.getMessId();
-      print('Mess ID: $messId');
-
       final userId = FirebaseAuthService.currentUser?.uid;
-      print('User ID: $userId');
-
       final userData = await FirebaseAuthService.getUserData();
-      print('User data: $userData');
 
       if (userId != null && messId.isNotEmpty) {
-        // Get all members for this mess
-        print('Fetching members...');
-        final memberSnapshot = await FirebaseFirestore.instance
+        // Get member record directly by uid (correct subcollection)
+        final memberDoc = await FirebaseFirestore.instance
+            .collection('messes')
+            .doc(messId)
             .collection('members')
-            .where('messId', isEqualTo: messId)
+            .doc(userId)
             .get();
 
-        print('Found ${memberSnapshot.docs.length} members');
-
-        double balance = 0.0;
-        String memberId = '';
-        String memberName = userData?['name'] ?? 'Unknown';
-
-        // Find the current user's member record by matching name
-        for (final doc in memberSnapshot.docs) {
-          final data = doc.data();
-          print('Checking member: ${data['name']}');
-          if (data['name'] == memberName) {
-            balance = (data['balance'] ?? 0.0) as double;
-            memberId = doc.id;
-            print('Found matching member: $memberName, balance: $balance');
-            break;
-          }
-        }
+        final balance =
+            (memberDoc.data()?['balance'] as num?)?.toDouble() ?? 0.0;
+        final memberName =
+            memberDoc.data()?['name'] as String? ??
+            userData?['name'] ??
+            'Unknown';
 
         if (mounted) {
           setState(() {
             _messId = messId;
             _advanceBalance = balance;
-            _memberId = memberId;
+            _memberId = userId;
             _memberName = memberName;
             _isLoading = false;
-
-            // Set default amount to advance balance if positive
             if (_advanceBalance > 0) {
               _amountController.text = _advanceBalance.toStringAsFixed(2);
             }
           });
         }
       } else {
-        print('User ID or Mess ID is null');
-        if (mounted) {
-          setState(() {
-            _isLoading = false;
-          });
-        }
+        if (mounted) setState(() => _isLoading = false);
       }
     } catch (e) {
-      print('Error loading withdraw data: $e');
       if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
+        setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error loading data: ${e.toString()}'),
+            content: Text('Error loading data: $e'),
             backgroundColor: Colors.red,
           ),
         );
@@ -457,7 +417,6 @@ class _WithdrawRequestPageState extends State<WithdrawRequestPage> {
       final userId = FirebaseAuthService.currentUser?.uid;
 
       final withdrawData = {
-        'messId': _messId,
         'memberId': _memberId,
         'memberName': _memberName,
         'userId': userId,
@@ -468,6 +427,8 @@ class _WithdrawRequestPageState extends State<WithdrawRequestPage> {
       };
 
       await FirebaseFirestore.instance
+          .collection('messes')
+          .doc(_messId)
           .collection('withdrawals')
           .add(withdrawData);
 

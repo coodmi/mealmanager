@@ -85,7 +85,6 @@ class AppRouter {
               .get();
           final role = doc.data()?['role'] as String? ?? 'member';
           final isAdmin =
-              role == 'manager' ||
               role == 'superAdmin' ||
               role == 'systemAdmin' ||
               role == 'supportAdmin' ||

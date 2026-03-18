@@ -175,8 +175,9 @@ class _ReportsPdfPageState extends State<ReportsPdfPage> {
   Widget _buildMemberSelector() {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
+          .collection('messes')
+          .doc(_messId)
           .collection('members')
-          .where('messId', isEqualTo: _messId)
           .snapshots(),
       builder: (context, snapshot) {
         if (!snapshot.hasData) {
@@ -474,28 +475,32 @@ class _ReportsPdfPageState extends State<ReportsPdfPage> {
   }
 
   Future<void> _generateFullMessReport() async {
-    // Get all members
+    // Get all members from subcollection
     final membersSnapshot = await FirebaseFirestore.instance
+        .collection('messes')
+        .doc(_messId)
         .collection('members')
-        .where('messId', isEqualTo: _messId)
         .get();
 
-    // Get all meals - filter by messId only, then filter dates in-memory
+    // Get all meals from subcollection, filter dates in-memory
     final mealsSnapshot = await FirebaseFirestore.instance
+        .collection('messes')
+        .doc(_messId)
         .collection('meals')
-        .where('messId', isEqualTo: _messId)
         .get();
 
-    // Get all expenses - filter by messId only
+    // Get all expenses from subcollection
     final expensesSnapshot = await FirebaseFirestore.instance
+        .collection('messes')
+        .doc(_messId)
         .collection('expenses')
-        .where('messId', isEqualTo: _messId)
         .get();
 
-    // Get all withdrawals - filter by messId only
+    // Get all withdrawals from subcollection
     final withdrawalsSnapshot = await FirebaseFirestore.instance
+        .collection('messes')
+        .doc(_messId)
         .collection('withdrawals')
-        .where('messId', isEqualTo: _messId)
         .get();
 
     // Filter meals by date range in-memory
@@ -580,6 +585,8 @@ class _ReportsPdfPageState extends State<ReportsPdfPage> {
     if (_selectedMemberId == null) return;
 
     final memberDoc = await FirebaseFirestore.instance
+        .collection('messes')
+        .doc(_messId)
         .collection('members')
         .doc(_selectedMemberId)
         .get();
@@ -587,21 +594,24 @@ class _ReportsPdfPageState extends State<ReportsPdfPage> {
     if (!memberDoc.exists) return;
     final memberData = memberDoc.data()!;
 
-    // Fetch with single filter, date-filter in-memory
+    // Fetch from subcollections, date-filter in-memory
     final mealsSnapshot = await FirebaseFirestore.instance
+        .collection('messes')
+        .doc(_messId)
         .collection('meals')
-        .where('messId', isEqualTo: _messId)
         .where('memberId', isEqualTo: _selectedMemberId)
         .get();
 
     final expensesSnapshot = await FirebaseFirestore.instance
+        .collection('messes')
+        .doc(_messId)
         .collection('expenses')
-        .where('messId', isEqualTo: _messId)
         .get();
 
     final withdrawalsSnapshot = await FirebaseFirestore.instance
+        .collection('messes')
+        .doc(_messId)
         .collection('withdrawals')
-        .where('messId', isEqualTo: _messId)
         .where('memberId', isEqualTo: _selectedMemberId)
         .get();
 
@@ -670,13 +680,15 @@ class _ReportsPdfPageState extends State<ReportsPdfPage> {
 
     if (_reportType == 'full') {
       final prevMealsSnapshot = await FirebaseFirestore.instance
+          .collection('messes')
+          .doc(_messId)
           .collection('meals')
-          .where('messId', isEqualTo: _messId)
           .get();
 
       final prevExpensesSnapshot = await FirebaseFirestore.instance
+          .collection('messes')
+          .doc(_messId)
           .collection('expenses')
-          .where('messId', isEqualTo: _messId)
           .get();
 
       final filteredMeals = prevMealsSnapshot.docs.where((doc) {
@@ -712,8 +724,9 @@ class _ReportsPdfPageState extends State<ReportsPdfPage> {
       });
     } else if (_selectedMemberId != null) {
       final prevMealsSnapshot = await FirebaseFirestore.instance
+          .collection('messes')
+          .doc(_messId)
           .collection('meals')
-          .where('messId', isEqualTo: _messId)
           .where('memberId', isEqualTo: _selectedMemberId)
           .get();
 

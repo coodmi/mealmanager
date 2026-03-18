@@ -10,6 +10,7 @@ import '../../../meal/presentation/pages/meal_page_working.dart';
 import '../../../expense/presentation/pages/expense_entry_page.dart';
 import '../../../withdraw/presentation/pages/withdraw_request_page.dart';
 import '../../../reports/presentation/pages/reports_pdf_page.dart';
+import '../../../menu/presentation/pages/mess_settings_page.dart';
 import '../../../menu/presentation/pages/menu_page.dart';
 import '../../../deposit/presentation/pages/deposit_page.dart';
 
@@ -322,8 +323,13 @@ class _DashboardPageState extends State<DashboardPage> {
                           IconButton(
                             icon: const Icon(Icons.settings_outlined, size: 22),
                             color: Colors.white,
-                            tooltip: 'Setup Database',
-                            onPressed: () => context.push('/setup'),
+                            tooltip: 'Mess Settings',
+                            onPressed: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const MessSettingsPage(),
+                              ),
+                            ),
                           ),
                           PopupMenuButton<String>(
                             icon: const Icon(
@@ -759,19 +765,28 @@ class _DashboardPageState extends State<DashboardPage> {
     );
   }
 
-  void _onActionTap(String label) {
+  Future<void> _onActionTap(String label) async {
     switch (label) {
+      case 'Deposit':
+        await Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const DepositPage()),
+        );
+        _loadDashboardData();
+        break;
       case 'Expense':
-        Navigator.push(
+        await Navigator.push(
           context,
           MaterialPageRoute(builder: (_) => const ExpenseEntryPage()),
         );
+        _loadDashboardData();
         break;
       case 'Withdraw':
-        Navigator.push(
+        await Navigator.push(
           context,
           MaterialPageRoute(builder: (_) => const WithdrawRequestPage()),
         );
+        _loadDashboardData();
         break;
       case 'Reports':
         Navigator.push(
@@ -790,12 +805,6 @@ class _DashboardPageState extends State<DashboardPage> {
         break;
       case 'Transaction':
         setState(() => _selectedIndex = 3);
-        break;
-      case 'Deposit':
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const DepositPage()),
-        );
         break;
     }
   }

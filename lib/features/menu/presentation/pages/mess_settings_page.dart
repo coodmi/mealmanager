@@ -488,7 +488,7 @@ class _MessSettingsPageState extends State<MessSettingsPage> {
             color: Colors.orange,
             title: 'Bazar Schedule',
             subtitle: 'Set up bazar duty rotation',
-            onTap: () => _showComingSoon('Bazar Schedule'),
+            onTap: () => _showBazarScheduleDialog(),
           ),
           const Divider(height: 1),
           _linkTile(
@@ -562,11 +562,96 @@ class _MessSettingsPageState extends State<MessSettingsPage> {
     );
   }
 
-  void _showComingSoon(String feature) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('$feature — coming soon!'),
-        behavior: SnackBarBehavior.floating,
+  void _showBazarScheduleDialog() async {
+    // Load current schedule from Firestore
+    final messDoc = await FirebaseFirestore.instance
+        .collection('messes')
+        .doc(_messId)
+        .get();
+    final existing = List<String>.from(messDoc.data()?['bazarSchedule'] ?? []);
+
+    final membersSnap = await FirebaseFirestore.instance
+        .collection('messes')
+        .doc(_messId)
+        .collection('members')
+        .get();
+
+    if (!mounted) return;
+
+    final selected = List<String>.from(existing);
+
+    await showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setS) => AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: const Text('Bazar Schedule'),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: membersSnap.docs.isEmpty
+                ? const Text('No members found. Add members first.')
+                : Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Select members for bazar duty rotation:',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      ...membersSnap.docs.map((doc) {
+                        final name =
+                            (doc.data())['name'] as String? ?? 'Unknown';
+                        final isChecked = selected.contains(doc.id);
+                        return CheckboxListTile(
+                          dense: true,
+                          value: isChecked,
+                          title: Text(name),
+                          activeColor: AppColors.primaryGreen,
+                          onChanged: (v) => setS(() {
+                            if (v == true)
+                              selected.add(doc.id);
+                            else
+                              selected.remove(doc.id);
+                          }),
+                        );
+                      }),
+                    ],
+                  ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primaryGreen,
+              ),
+              onPressed: () async {
+                await FirebaseFirestore.instance
+                    .collection('messes')
+                    .doc(_messId)
+                    .update({'bazarSchedule': selected});
+                if (ctx.mounted) Navigator.pop(ctx);
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Bazar schedule saved!'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                }
+              },
+              child: const Text('Save', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -587,9 +672,9 @@ class _MessSettingsPageState extends State<MessSettingsPage> {
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.teal),
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(ctx);
-              _showComingSoon('Month Close');
+              await _doMonthClose();
             },
             child: const Text(
               'Close Month',
@@ -601,26 +686,186 @@ class _MessSettingsPageState extends State<MessSettingsPage> {
     );
   }
 
-  void _showTransferManagership() {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Transfer Managership'),
-        content: const Text(
-          'You can transfer the manager role to another member. They will have full control of the mess. This feature is coming soon.',
-        ),
-        actions: [
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primaryGreen,
+  Future<void> _doMonthClose() async {
+    try {
+      final now = DateTime.now();
+      final monthKey = '${now.year}-${now.month.toString().padLeft(2, '0')}';
+
+      // Gather totals for the month
+      final mealsSnap = await FirebaseFirestore.instance
+          .collection('messes')
+          .doc(_messId)
+          .collection('meals')
+          .where('monthKey', isEqualTo: monthKey)
+          .get();
+
+      final expSnap = await FirebaseFirestore.instance
+          .collection('messes')
+          .doc(_messId)
+          .collection('expenses')
+          .where('monthKey', isEqualTo: monthKey)
+          .get();
+
+      double totalExpense = 0;
+      for (final d in expSnap.docs) {
+        totalExpense += (d.data()['amount'] as num?)?.toDouble() ?? 0;
+      }
+      final totalMeals = mealsSnap.docs.length;
+      final mealRate = totalMeals > 0 ? totalExpense / totalMeals : 0.0;
+
+      // Save month summary
+      await FirebaseFirestore.instance
+          .collection('messes')
+          .doc(_messId)
+          .collection('monthSummaries')
+          .doc(monthKey)
+          .set({
+            'monthKey': monthKey,
+            'totalMeals': totalMeals,
+            'totalExpense': totalExpense,
+            'mealRate': mealRate,
+            'closedAt': FieldValue.serverTimestamp(),
+          });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Month $monthKey closed! Meal rate: ৳${mealRate.toStringAsFixed(2)}',
             ),
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('OK', style: TextStyle(color: Colors.white)),
+            backgroundColor: Colors.teal,
+            behavior: SnackBarBehavior.floating,
           ),
-        ],
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  void _showTransferManagership() async {
+    final membersSnap = await FirebaseFirestore.instance
+        .collection('messes')
+        .doc(_messId)
+        .collection('members')
+        .get();
+
+    if (!mounted) return;
+
+    final user = FirebaseAuth.instance.currentUser;
+    final otherMembers = membersSnap.docs
+        .where((d) => d.id != user?.uid)
+        .toList();
+
+    if (otherMembers.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No other members to transfer to.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    String? selectedId;
+
+    await showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setS) => AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: const Text('Transfer Managership'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('Select the member to become the new manager:'),
+              const SizedBox(height: 12),
+              ...otherMembers.map((doc) {
+                final name = (doc.data())['name'] as String? ?? 'Unknown';
+                return RadioListTile<String>(
+                  value: doc.id,
+                  groupValue: selectedId,
+                  title: Text(name),
+                  activeColor: AppColors.primaryGreen,
+                  onChanged: (v) => setS(() => selectedId = v),
+                );
+              }),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: selectedId != null
+                    ? Colors.deepPurple
+                    : Colors.grey,
+              ),
+              onPressed: selectedId == null
+                  ? null
+                  : () async {
+                      Navigator.pop(ctx);
+                      await _doTransferManagership(selectedId!);
+                    },
+              child: const Text(
+                'Transfer',
+                style: TextStyle(color: Colors.white),
+              ),
+            ),
+          ],
+        ),
       ),
     );
+  }
+
+  Future<void> _doTransferManagership(String newManagerId) async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+      final batch = FirebaseFirestore.instance.batch();
+
+      // New manager
+      batch.update(
+        FirebaseFirestore.instance.collection('users').doc(newManagerId),
+        {'role': 'manager'},
+      );
+      // Old manager becomes member
+      batch.update(
+        FirebaseFirestore.instance.collection('users').doc(user.uid),
+        {'role': 'member'},
+      );
+      // Update mess managerId
+      batch.update(
+        FirebaseFirestore.instance.collection('messes').doc(_messId),
+        {'managerId': newManagerId},
+      );
+
+      await batch.commit();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Managership transferred!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        Navigator.pop(context); // go back from settings
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
   }
 
   void _confirmDeleteMess() {
@@ -639,15 +884,55 @@ class _MessSettingsPageState extends State<MessSettingsPage> {
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(ctx);
-              _showComingSoon('Delete Mess');
+              await _doDeleteMess();
             },
             child: const Text('Delete', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
     );
+  }
+
+  Future<void> _doDeleteMess() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      // Remove messId from all members' user docs
+      final membersSnap = await FirebaseFirestore.instance
+          .collection('messes')
+          .doc(_messId)
+          .collection('members')
+          .get();
+
+      final batch = FirebaseFirestore.instance.batch();
+      for (final doc in membersSnap.docs) {
+        batch.update(
+          FirebaseFirestore.instance.collection('users').doc(doc.id),
+          {'messId': '', 'role': 'member'},
+        );
+      }
+      // Delete mess doc
+      batch.delete(
+        FirebaseFirestore.instance.collection('messes').doc(_messId),
+      );
+      await batch.commit();
+
+      if (mounted) {
+        context.go('/create-join-mess');
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error deleting mess: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   Widget _card({required Widget child}) {

@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../menu/presentation/pages/subscription_page.dart';
+import 'member_details_page.dart';
 
 class MemberPage extends StatefulWidget {
   final bool embedded;
@@ -515,7 +516,19 @@ class _MemberPageState extends State<MemberPage> {
         color: Colors.transparent,
         child: InkWell(
           borderRadius: BorderRadius.circular(12),
-          onTap: _isManager ? () => _showMemberOptions(docId, data) : null,
+          onTap: () {
+            if (_isManager) {
+              _showMemberOptions(docId, data);
+            } else {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) =>
+                      MemberDetailsPage(memberId: docId, memberName: name),
+                ),
+              );
+            }
+          },
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Row(
@@ -643,6 +656,22 @@ class _MemberPageState extends State<MemberPage> {
               style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
+            _optionTile(
+              ctx,
+              Icons.person_outline,
+              'View Details',
+              AppColors.primaryGreen,
+              () {
+                Navigator.pop(ctx);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) =>
+                        MemberDetailsPage(memberId: docId, memberName: name),
+                  ),
+                );
+              },
+            ),
             _optionTile(
               ctx,
               Icons.toggle_on_rounded,
