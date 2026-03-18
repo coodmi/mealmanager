@@ -60,6 +60,11 @@ class AuthService {
     );
   }
 
+  // Google Sign-In
+  static Future<Map<String, dynamic>> signInWithGoogle() async {
+    return await FirebaseAuthService.signInWithGoogle();
+  }
+
   // Get user data (delegates to Firebase)
   static Future<Map<String, dynamic>?> getUserData() async {
     return await FirebaseAuthService.getUserData();

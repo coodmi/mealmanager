@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 
 class FirebaseAuthService {
   static final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -66,20 +67,36 @@ class FirebaseAuthService {
     }
   }
 
-  // Login user
+  // Login user — supports both email and mobile number
   static Future<Map<String, dynamic>> loginUser({
     required String email,
     required String password,
   }) async {
     try {
+      String loginEmail = email.trim();
+
+      // If input looks like a mobile number (all digits, starts with 0 or +), look up email
+      final isMobile = RegExp(r'^[0-9+\-\s]{7,15}$').hasMatch(loginEmail);
+      if (isMobile) {
+        final query = await _firestore
+            .collection('users')
+            .where('mobile', isEqualTo: loginEmail)
+            .limit(1)
+            .get();
+        if (query.docs.isEmpty) {
+          return {'success': false, 'message': 'Wrong ID/Password entered'};
+        }
+        loginEmail = query.docs.first.data()['email'] as String? ?? loginEmail;
+      }
+
       final userCredential = await _auth.signInWithEmailAndPassword(
-        email: email,
+        email: loginEmail,
         password: password,
       );
 
       final user = userCredential.user;
       if (user == null) {
-        return {'success': false, 'message': 'Login failed'};
+        return {'success': false, 'message': 'Wrong ID/Password entered'};
       }
 
       return {
@@ -88,26 +105,63 @@ class FirebaseAuthService {
         'userId': user.uid,
       };
     } on FirebaseAuthException catch (e) {
-      String message = 'Login failed';
+      // Always show a simple message regardless of the actual error code
       switch (e.code) {
-        case 'user-not-found':
-          message = 'No user found with this email';
-          break;
-        case 'wrong-password':
-          message = 'Incorrect password';
-          break;
-        case 'invalid-email':
-          message = 'Invalid email address';
-          break;
         case 'user-disabled':
-          message = 'This account has been disabled';
-          break;
+          return {
+            'success': false,
+            'message': 'This account has been disabled',
+          };
         default:
-          message = e.message ?? 'Login failed';
+          return {'success': false, 'message': 'Wrong ID/Password entered'};
       }
-      return {'success': false, 'message': message};
     } catch (e) {
-      return {'success': false, 'message': 'Error: $e'};
+      return {'success': false, 'message': 'Wrong ID/Password entered'};
+    }
+  }
+
+  // Google Sign-In
+  static Future<Map<String, dynamic>> signInWithGoogle() async {
+    try {
+      await FirebaseAuth.instance.signOut();
+      final googleUser = await GoogleSignIn().signIn();
+      if (googleUser == null) {
+        return {'success': false, 'message': 'Google sign-in cancelled'};
+      }
+      final googleAuth = await googleUser.authentication;
+      final credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
+      final userCredential = await _auth.signInWithCredential(credential);
+      final user = userCredential.user;
+      if (user == null) return {'success': false, 'message': 'Sign-in failed'};
+
+      // Create Firestore doc if first time
+      final doc = await _firestore.collection('users').doc(user.uid).get();
+      if (!doc.exists) {
+        await _firestore.collection('users').doc(user.uid).set({
+          'name': user.displayName ?? '',
+          'mobile': '',
+          'email': user.email ?? '',
+          'createdAt': FieldValue.serverTimestamp(),
+          'messId': null,
+          'role': 'member',
+        });
+      }
+
+      return {
+        'success': true,
+        'message': 'Login successful',
+        'userId': user.uid,
+      };
+    } on FirebaseAuthException catch (e) {
+      return {
+        'success': false,
+        'message': e.message ?? 'Google sign-in failed',
+      };
+    } catch (e) {
+      return {'success': false, 'message': 'Google sign-in failed'};
     }
   }
 
