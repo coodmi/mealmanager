@@ -198,12 +198,30 @@ class _LoginPageState extends State<LoginPage>
             role == 'superAdmin' ||
             role == 'systemAdmin' ||
             role == 'supportAdmin' ||
-            role == 'contentAdmin' ||
-            role == 'manager';
+            role == 'contentAdmin';
         if (isAdmin) {
           context.go(AppRouter.admin);
-        } else if (userData != null && userData['messId'] != null) {
-          context.go(AppRouter.dashboard);
+        } else if (userData != null &&
+            userData['messId'] != null &&
+            (userData['messId'] as String).isNotEmpty) {
+          // Check mess setup
+          final messId = userData['messId'] as String;
+          try {
+            final messDoc = await FirebaseFirestore.instance
+                .collection('messes')
+                .doc(messId)
+                .get();
+            final setupComplete =
+                messDoc.data()?['setupComplete'] as bool? ?? false;
+            if (!mounted) return;
+            if (setupComplete) {
+              context.go(AppRouter.dashboard);
+            } else {
+              context.go(AppRouter.messSettings);
+            }
+          } catch (_) {
+            if (mounted) context.go(AppRouter.dashboard);
+          }
         } else {
           context.go(AppRouter.createJoinMess);
         }
@@ -258,8 +276,7 @@ class _LoginPageState extends State<LoginPage>
             role == 'superAdmin' ||
             role == 'systemAdmin' ||
             role == 'supportAdmin' ||
-            role == 'contentAdmin' ||
-            role == 'manager';
+            role == 'contentAdmin';
 
         if (isAdmin) {
           context.go(AppRouter.admin);

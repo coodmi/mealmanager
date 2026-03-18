@@ -94,15 +94,30 @@ class _SplashPageState extends State<SplashPage> with TickerProviderStateMixin {
           role == 'superAdmin' ||
           role == 'systemAdmin' ||
           role == 'supportAdmin' ||
-          role == 'contentAdmin' ||
-          role == 'manager';
+          role == 'contentAdmin';
 
       if (isAdmin) {
         context.go('/admin');
       } else if (joinStatus == 'pending') {
         context.go('/pending-approval');
       } else if (messId != null && messId.toString().isNotEmpty) {
-        context.go('/dashboard');
+        // Check if mess setup is complete
+        try {
+          final messDoc = await FirebaseFirestore.instance
+              .collection('messes')
+              .doc(messId.toString())
+              .get();
+          final setupComplete =
+              messDoc.data()?['setupComplete'] as bool? ?? false;
+          if (!mounted) return;
+          if (setupComplete) {
+            context.go('/dashboard');
+          } else {
+            context.go('/mess-settings');
+          }
+        } catch (_) {
+          if (mounted) context.go('/dashboard');
+        }
       } else {
         context.go('/create-join-mess');
       }
