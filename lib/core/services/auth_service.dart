@@ -2,7 +2,6 @@ import 'dart:async';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_auth_platform_interface/firebase_auth_platform_interface.dart';
 import 'firebase_auth_service.dart';
 
 class AuthService {
@@ -76,9 +75,23 @@ class AuthService {
         return completer.future;
       }
     } on FirebaseAuthException catch (e) {
-      return {'success': false, 'message': e.message ?? 'Failed to send OTP'};
+      String msg;
+      switch (e.code) {
+        case 'too-many-requests':
+          msg = 'Too many attempts. Please wait a few hours and try again.';
+          break;
+        case 'invalid-phone-number':
+          msg = 'Invalid phone number. Please check and try again.';
+          break;
+        default:
+          msg = e.message ?? 'Failed to send OTP';
+      }
+      return {'success': false, 'message': msg};
     } catch (e) {
-      return {'success': false, 'message': 'Failed to send OTP: $e'};
+      return {
+        'success': false,
+        'message': 'Failed to send OTP. Please try again.',
+      };
     }
   }
 
