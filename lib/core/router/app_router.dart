@@ -9,6 +9,7 @@ import '../../features/dashboard/presentation/pages/dashboard_page.dart';
 import '../../features/setup/setup_page.dart';
 import '../../features/admin/admin_shell.dart';
 import '../../features/splash/splash_page.dart';
+import '../../features/menu/presentation/pages/mess_settings_page.dart';
 
 class AppRouter {
   static const String splash = '/splash';
@@ -19,6 +20,7 @@ class AppRouter {
   static const String dashboard = '/dashboard';
   static const String setup = '/setup';
   static const String admin = '/admin';
+  static const String messSettings = '/mess-settings';
 
   static final GoRouter router = GoRouter(
     initialLocation: splash,
@@ -67,6 +69,10 @@ class AppRouter {
         builder: (context, state) => const DashboardPage(),
       ),
       GoRoute(path: setup, builder: (context, state) => const SetupPage()),
+      GoRoute(
+        path: messSettings,
+        builder: (context, state) => const MessSettingsPage(),
+      ),
       GoRoute(
         path: admin,
         builder: (context, state) => const AdminShell(),

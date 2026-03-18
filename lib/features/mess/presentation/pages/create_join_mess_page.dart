@@ -374,87 +374,197 @@ class _CreateJoinMessPageState extends State<CreateJoinMessPage> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => AlertDialog(
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Row(
           children: [
             Icon(Icons.check_circle, color: AppColors.primaryGreen),
             const SizedBox(width: 8),
-            const Text('Success!'),
+            const Text('Mess Created!'),
           ],
         ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Mess created successfully!'),
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppColors.primaryGreen.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: AppColors.primaryGreen),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Mess ID:',
-                    style: TextStyle(fontSize: 12, color: AppColors.textLight),
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          messId,
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.primaryGreen,
-                            letterSpacing: 2,
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Mess ID box
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.primaryGreen.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: AppColors.primaryGreen),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Your Mess ID',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textLight,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            messId,
+                            style: TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.primaryGreen,
+                              letterSpacing: 2,
+                            ),
                           ),
                         ),
-                      ),
-                      IconButton(
-                        icon: const Icon(
-                          Icons.copy,
-                          color: AppColors.primaryGreen,
-                        ),
-                        tooltip: 'Copy Mess ID',
-                        onPressed: () async {
-                          await Clipboard.setData(ClipboardData(text: messId));
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Mess ID copied!'),
-                                behavior: SnackBarBehavior.floating,
-                                duration: Duration(seconds: 2),
-                              ),
+                        IconButton(
+                          icon: const Icon(
+                            Icons.copy,
+                            color: AppColors.primaryGreen,
+                          ),
+                          tooltip: 'Copy Mess ID',
+                          onPressed: () async {
+                            await Clipboard.setData(
+                              ClipboardData(text: messId),
                             );
-                          }
-                        },
-                      ),
-                    ],
-                  ),
-                ],
+                            if (ctx.mounted) {
+                              ScaffoldMessenger.of(ctx).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Mess ID copied!'),
+                                  behavior: SnackBarBehavior.floating,
+                                  duration: Duration(seconds: 2),
+                                ),
+                              );
+                            }
+                          },
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'Share this ID with members to join your mess.',
-              style: TextStyle(fontSize: 12, color: AppColors.textLight),
-            ),
-          ],
+              const SizedBox(height: 16),
+              // Setup instructions
+              const Text(
+                'Next steps to set up your mess:',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+              ),
+              const SizedBox(height: 10),
+              _setupStep(
+                '1',
+                'Meal Entry System',
+                'Choose Manual or Auto meal entry mode',
+                Icons.restaurant_menu,
+              ),
+              _setupStep(
+                '2',
+                'Add Members',
+                'Invite members using your Mess ID',
+                Icons.people,
+              ),
+              _setupStep(
+                '3',
+                'Bazar Schedule',
+                'Set up who does bazar and when',
+                Icons.shopping_basket,
+              ),
+              _setupStep(
+                '4',
+                'Subscription',
+                'Choose a plan for your mess',
+                Icons.workspace_premium,
+              ),
+            ],
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () {
-              Navigator.pop(context);
+              Navigator.pop(ctx);
               context.go(AppRouter.dashboard);
             },
-            child: const Text('Go to Dashboard'),
+            child: const Text('Skip for now'),
           ),
+          ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primaryGreen,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            icon: const Icon(Icons.settings, color: Colors.white, size: 18),
+            label: const Text(
+              'Go to Mess Setting',
+              style: TextStyle(color: Colors.white),
+            ),
+            onPressed: () {
+              Navigator.pop(ctx);
+              context.go(AppRouter.dashboard);
+              // Navigate to mess settings via menu
+              Future.delayed(const Duration(milliseconds: 300), () {
+                if (context.mounted) {
+                  context.push(AppRouter.messSettings);
+                }
+              });
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _setupStep(
+    String number,
+    String title,
+    String subtitle,
+    IconData icon,
+  ) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 24,
+            height: 24,
+            decoration: BoxDecoration(
+              color: AppColors.primaryGreen,
+              shape: BoxShape.circle,
+            ),
+            child: Center(
+              child: Text(
+                number,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                  ),
+                ),
+                Text(
+                  subtitle,
+                  style: TextStyle(fontSize: 12, color: AppColors.textLight),
+                ),
+              ],
+            ),
+          ),
+          Icon(icon, size: 18, color: AppColors.primaryGreen),
         ],
       ),
     );

@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../../core/constants/app_colors.dart';
+import '../../../member/presentation/pages/member_page.dart';
+import 'subscription_page.dart';
 
 class MessSettingsPage extends StatefulWidget {
   const MessSettingsPage({super.key});
@@ -19,6 +21,8 @@ class _MessSettingsPageState extends State<MessSettingsPage> {
   String _messId = '';
   String _plan = 'free';
   int _memberCount = 0;
+  String _mealEntryMode = 'manual';
+  bool _isManager = false;
 
   @override
   void initState() {
@@ -47,6 +51,7 @@ class _MessSettingsPageState extends State<MessSettingsPage> {
           .doc(user.uid)
           .get();
       final messId = userDoc.data()?['messId'] as String? ?? '';
+      final role = userDoc.data()?['role'] as String? ?? 'member';
       if (messId.isEmpty) return;
 
       final messDoc = await FirebaseFirestore.instance
@@ -55,7 +60,6 @@ class _MessSettingsPageState extends State<MessSettingsPage> {
           .get();
       final data = messDoc.data() ?? {};
 
-      // count members
       final membersSnap = await FirebaseFirestore.instance
           .collection('messes')
           .doc(messId)
@@ -68,7 +72,9 @@ class _MessSettingsPageState extends State<MessSettingsPage> {
           _nameCtrl.text = data['name'] as String? ?? '';
           _addressCtrl.text = data['address'] as String? ?? '';
           _plan = data['subscription'] as String? ?? 'free';
+          _mealEntryMode = data['mealEntryMode'] as String? ?? 'manual';
           _memberCount = membersSnap.docs.length;
+          _isManager = role == 'manager' || role == 'admin';
           _isLoading = false;
         });
       }
@@ -96,7 +102,7 @@ class _MessSettingsPageState extends State<MessSettingsPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Settings saved successfully!'),
+            content: Text('Settings saved!'),
             backgroundColor: Colors.green,
             behavior: SnackBarBehavior.floating,
           ),
@@ -115,6 +121,26 @@ class _MessSettingsPageState extends State<MessSettingsPage> {
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
+  }
+
+  Future<void> _setMealEntryMode(String mode) async {
+    setState(() => _mealEntryMode = mode);
+    try {
+      await FirebaseFirestore.instance.collection('messes').doc(_messId).update(
+        {'mealEntryMode': mode},
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Meal entry set to ${mode == 'auto' ? 'Auto' : 'Manual'}',
+            ),
+            backgroundColor: Colors.green,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (_) {}
   }
 
   @override
@@ -136,211 +162,547 @@ class _MessSettingsPageState extends State<MessSettingsPage> {
               padding: const EdgeInsets.all(16),
               child: Column(
                 children: [
-                  // Info card
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [AppColors.primaryGreen, AppColors.buttonGreen],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.2),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: const Icon(
-                            Icons.home_work_rounded,
-                            color: Colors.white,
-                            size: 28,
-                          ),
-                        ),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                _nameCtrl.text.isEmpty
-                                    ? 'Your Mess'
-                                    : _nameCtrl.text,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              Text(
-                                'ID: $_messId',
-                                style: const TextStyle(
-                                  color: Colors.white70,
-                                  fontSize: 12,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Row(
-                                children: [
-                                  _infoBadge('$_memberCount Members'),
-                                  const SizedBox(width: 8),
-                                  _infoBadge(_plan.toUpperCase()),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-
-                  // Edit form
-                  Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.05),
-                          blurRadius: 8,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Mess Information',
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        _field(_nameCtrl, 'Mess Name', Icons.home_work),
-                        const SizedBox(height: 14),
-                        _field(
-                          _addressCtrl,
-                          'Address (optional)',
-                          Icons.location_on,
-                        ),
-                        const SizedBox(height: 20),
-                        SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.primaryGreen,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                            ),
-                            onPressed: _isSaving ? null : _saveSettings,
-                            child: _isSaving
-                                ? const SizedBox(
-                                    height: 20,
-                                    width: 20,
-                                    child: CircularProgressIndicator(
-                                      color: Colors.white,
-                                      strokeWidth: 2,
-                                    ),
-                                  )
-                                : const Text(
-                                    'Save Changes',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+                  _buildInfoCard(),
                   const SizedBox(height: 16),
+                  _buildMealEntrySection(),
+                  const SizedBox(height: 16),
+                  _buildEditForm(),
+                  const SizedBox(height: 16),
+                  _buildMessIdCard(),
+                  const SizedBox(height: 16),
+                  _buildQuickLinks(),
+                  if (_isManager) ...[
+                    const SizedBox(height: 16),
+                    _buildDangerZone(),
+                  ],
+                  const SizedBox(height: 24),
+                ],
+              ),
+            ),
+    );
+  }
 
-                  // Mess ID card
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.05),
-                          blurRadius: 8,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
+  Widget _buildInfoCard() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [AppColors.primaryGreen, AppColors.buttonGreen],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.2),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(
+              Icons.home_work_rounded,
+              color: Colors.white,
+              size: 28,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _nameCtrl.text.isEmpty ? 'Your Mess' : _nameCtrl.text,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Text(
+                  'ID: $_messId',
+                  style: const TextStyle(color: Colors.white70, fontSize: 12),
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    _infoBadge('$_memberCount Members'),
+                    const SizedBox(width: 8),
+                    _infoBadge(_plan.toUpperCase()),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMealEntrySection() {
+    return _card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.restaurant_menu, color: AppColors.primaryGreen),
+              const SizedBox(width: 8),
+              const Text(
+                'Meal Entry System',
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Choose how meals are recorded each day.',
+            style: TextStyle(fontSize: 12, color: AppColors.textLight),
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: _modeOption(
+                  label: 'Manual',
+                  subtitle: 'Members enter meals themselves',
+                  icon: Icons.edit_note,
+                  selected: _mealEntryMode == 'manual',
+                  onTap: () => _setMealEntryMode('manual'),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _modeOption(
+                  label: 'Auto',
+                  subtitle: 'Meals counted automatically daily',
+                  icon: Icons.auto_mode,
+                  selected: _mealEntryMode == 'auto',
+                  onTap: () => _setMealEntryMode('auto'),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _modeOption({
+    required String label,
+    required String subtitle,
+    required IconData icon,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: selected
+              ? AppColors.primaryGreen.withValues(alpha: 0.1)
+              : Colors.grey.shade50,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: selected ? AppColors.primaryGreen : Colors.grey.shade200,
+            width: selected ? 2 : 1,
+          ),
+        ),
+        child: Column(
+          children: [
+            Icon(
+              icon,
+              color: selected ? AppColors.primaryGreen : Colors.grey,
+              size: 28,
+            ),
+            const SizedBox(height: 6),
+            Text(
+              label,
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: selected ? AppColors.primaryGreen : Colors.grey.shade700,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              subtitle,
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+            ),
+            if (selected) ...[
+              const SizedBox(height: 6),
+              const Icon(
+                Icons.check_circle,
+                color: AppColors.primaryGreen,
+                size: 18,
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEditForm() {
+    return _card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Mess Information',
+            style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 16),
+          _field(_nameCtrl, 'Mess Name', Icons.home_work),
+          const SizedBox(height: 14),
+          _field(_addressCtrl, 'Address (optional)', Icons.location_on),
+          const SizedBox(height: 20),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primaryGreen,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+              ),
+              onPressed: _isSaving ? null : _saveSettings,
+              child: _isSaving
+                  ? const SizedBox(
+                      height: 20,
+                      width: 20,
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 2,
+                      ),
+                    )
+                  : const Text(
+                      'Save Changes',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
-                    child: Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            color: Colors.blue.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: const Icon(
-                            Icons.qr_code,
-                            color: Colors.blue,
-                            size: 22,
-                          ),
-                        ),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                'Mess ID',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  color: AppColors.textLight,
-                                ),
-                              ),
-                              Text(
-                                _messId,
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                  letterSpacing: 1,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.copy, color: Colors.blue),
-                          tooltip: 'Copy ID',
-                          onPressed: () async {
-                            await Clipboard.setData(
-                              ClipboardData(text: _messId),
-                            );
-                            if (mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Mess ID copied to clipboard!'),
-                                  behavior: SnackBarBehavior.floating,
-                                  duration: Duration(seconds: 2),
-                                ),
-                              );
-                            }
-                          },
-                        ),
-                      ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMessIdCard() {
+    return _card(
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Colors.blue.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(Icons.qr_code, color: Colors.blue, size: 22),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Mess ID',
+                  style: TextStyle(fontSize: 13, color: AppColors.textLight),
+                ),
+                Text(
+                  _messId,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.copy, color: Colors.blue),
+            tooltip: 'Copy ID',
+            onPressed: () async {
+              await Clipboard.setData(ClipboardData(text: _messId));
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Mess ID copied!'),
+                    behavior: SnackBarBehavior.floating,
+                    duration: Duration(seconds: 2),
+                  ),
+                );
+              }
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQuickLinks() {
+    return _card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Setup & Management',
+            style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 12),
+          _linkTile(
+            icon: Icons.people,
+            color: Colors.blue,
+            title: 'Members Setup',
+            subtitle: 'Add, remove or manage members',
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const MemberPage()),
+            ),
+          ),
+          const Divider(height: 1),
+          _linkTile(
+            icon: Icons.shopping_basket,
+            color: Colors.orange,
+            title: 'Bazar Schedule',
+            subtitle: 'Set up bazar duty rotation',
+            onTap: () => _showComingSoon('Bazar Schedule'),
+          ),
+          const Divider(height: 1),
+          _linkTile(
+            icon: Icons.workspace_premium,
+            color: Colors.amber.shade700,
+            title: 'Subscription',
+            subtitle: 'Manage your mess plan',
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const SubscriptionPage()),
+            ),
+          ),
+          const Divider(height: 1),
+          _linkTile(
+            icon: Icons.calendar_month,
+            color: Colors.teal,
+            title: 'Month Close',
+            subtitle: 'Close current month and generate summary',
+            onTap: () => _confirmMonthClose(),
+          ),
+          if (_isManager) ...[
+            const Divider(height: 1),
+            _linkTile(
+              icon: Icons.swap_horiz,
+              color: Colors.deepPurple,
+              title: 'Transfer Managership',
+              subtitle: 'Hand over manager role to another member',
+              onTap: () => _showTransferManagership(),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDangerZone() {
+    return _card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Danger Zone',
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.bold,
+              color: Colors.red,
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.red,
+                side: const BorderSide(color: Colors.red),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+              ),
+              icon: const Icon(Icons.delete_forever),
+              label: const Text(
+                'Delete Mess',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              onPressed: () => _confirmDeleteMess(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showComingSoon(String feature) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('$feature — coming soon!'),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  void _confirmMonthClose() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Close Month?'),
+        content: const Text(
+          'This will finalize all meals and expenses for the current month and generate a summary report. This action cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.teal),
+            onPressed: () {
+              Navigator.pop(ctx);
+              _showComingSoon('Month Close');
+            },
+            child: const Text(
+              'Close Month',
+              style: TextStyle(color: Colors.white),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showTransferManagership() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Transfer Managership'),
+        content: const Text(
+          'You can transfer the manager role to another member. They will have full control of the mess. This feature is coming soon.',
+        ),
+        actions: [
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primaryGreen,
+            ),
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('OK', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmDeleteMess() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Delete Mess?', style: TextStyle(color: Colors.red)),
+        content: const Text(
+          'This will permanently delete your mess and all its data. All members will lose access. This cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () {
+              Navigator.pop(ctx);
+              _showComingSoon('Delete Mess');
+            },
+            child: const Text('Delete', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _card({required Widget child}) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: child,
+    );
+  }
+
+  Widget _linkTile({
+    required IconData icon,
+    required Color color,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(9),
+              ),
+              child: Icon(icon, color: color, size: 20),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
                     ),
+                  ),
+                  Text(
+                    subtitle,
+                    style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
                   ),
                 ],
               ),
             ),
+            Icon(
+              Icons.arrow_forward_ios,
+              size: 13,
+              color: Colors.grey.shade400,
+            ),
+          ],
+        ),
+      ),
     );
   }
 
