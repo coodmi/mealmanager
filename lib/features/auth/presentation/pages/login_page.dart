@@ -29,6 +29,7 @@ class _LoginPageState extends State<LoginPage>
   bool _isLoading = false;
   bool _loginPasswordVisible = false;
   bool _registerPasswordVisible = false;
+  String _registerPassword = '';
 
   @override
   void initState() {
@@ -580,6 +581,7 @@ class _LoginPageState extends State<LoginPage>
                   ),
                 ),
                 obscureText: !_registerPasswordVisible,
+                onChanged: (v) => setState(() => _registerPassword = v),
                 validator: (value) {
                   if (value?.isEmpty ?? true) return 'Required';
                   if (value!.length < 6) return 'Minimum 6 characters required';
@@ -587,6 +589,10 @@ class _LoginPageState extends State<LoginPage>
                 },
               ),
             ),
+            if (_registerPassword.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              _PasswordStrengthBar(password: _registerPassword),
+            ],
             const SizedBox(height: 24),
             SizedBox(
               width: double.infinity,
@@ -623,6 +629,107 @@ class _LoginPageState extends State<LoginPage>
           ],
         ),
       ),
+    );
+  }
+}
+
+// ── Password Strength Indicator ──────────────────────────────────────────────
+class _PasswordStrengthBar extends StatelessWidget {
+  final String password;
+  const _PasswordStrengthBar({required this.password});
+
+  // Returns 0-4 score
+  int get _score {
+    int s = 0;
+    if (password.length >= 8) s++;
+    if (password.contains(RegExp(r'[A-Z]'))) s++;
+    if (password.contains(RegExp(r'[0-9]'))) s++;
+    if (password.contains(RegExp(r'[!@#\$%^&*(),.?":{}|<>_\-]'))) s++;
+    return s;
+  }
+
+  String get _label {
+    switch (_score) {
+      case 0:
+      case 1:
+        return 'Weak';
+      case 2:
+        return 'Fair';
+      case 3:
+        return 'Good';
+      default:
+        return 'Strong';
+    }
+  }
+
+  Color get _color {
+    switch (_score) {
+      case 0:
+      case 1:
+        return Colors.red;
+      case 2:
+        return Colors.orange;
+      case 3:
+        return Colors.lightGreen;
+      default:
+        return Colors.green;
+    }
+  }
+
+  String get _suggestion {
+    final tips = <String>[];
+    if (password.length < 8) tips.add('8+ characters');
+    if (!password.contains(RegExp(r'[A-Z]'))) tips.add('uppercase letter');
+    if (!password.contains(RegExp(r'[0-9]'))) tips.add('a number');
+    if (!password.contains(RegExp(r'[!@#\$%^&*(),.?":{}|<>_\-]')))
+      tips.add('a symbol (!@#...)');
+    if (tips.isEmpty) return 'Great password!';
+    return 'Add: ${tips.join(', ')}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: List.generate(4, (i) {
+            return Expanded(
+              child: Container(
+                margin: EdgeInsets.only(right: i < 3 ? 4 : 0),
+                height: 4,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(2),
+                  color: i < _score
+                      ? _color
+                      : Colors.grey.withValues(alpha: 0.25),
+                ),
+              ),
+            );
+          }),
+        ),
+        const SizedBox(height: 6),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              _label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: _color,
+              ),
+            ),
+            Flexible(
+              child: Text(
+                _suggestion,
+                style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+                textAlign: TextAlign.right,
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 }
