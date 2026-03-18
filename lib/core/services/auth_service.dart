@@ -39,14 +39,9 @@ class AuthService {
 
     try {
       if (kIsWeb) {
-        // Web: use signInWithPhoneNumber with invisible reCAPTCHA
-        final recaptchaVerifier = RecaptchaVerifier(
-          auth: FirebaseAuthPlatform.instance,
-          size: RecaptchaVerifierSize.normal,
-          theme: RecaptchaVerifierTheme.light,
-        );
+        // Web: Firebase auto-creates an invisible reCAPTCHA
         _webConfirmationResult = await FirebaseAuth.instance
-            .signInWithPhoneNumber(phone, recaptchaVerifier);
+            .signInWithPhoneNumber(phone);
         return {'success': true, 'autoVerified': false};
       } else {
         // Mobile: use verifyPhoneNumber callback flow
