@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:google_sign_in/google_sign_in.dart';
 
 class FirebaseAuthService {
@@ -120,20 +121,31 @@ class FirebaseAuthService {
     }
   }
 
-  // Google Sign-In
+  // Google Sign-In — uses popup on web, native flow on mobile
   static Future<Map<String, dynamic>> signInWithGoogle() async {
     try {
       await FirebaseAuth.instance.signOut();
-      final googleUser = await GoogleSignIn().signIn();
-      if (googleUser == null) {
-        return {'success': false, 'message': 'Google sign-in cancelled'};
+
+      UserCredential userCredential;
+
+      if (kIsWeb) {
+        // Web: Firebase popup — no separate client ID needed
+        final provider = GoogleAuthProvider();
+        userCredential = await _auth.signInWithPopup(provider);
+      } else {
+        // Mobile: google_sign_in package
+        final googleUser = await GoogleSignIn().signIn();
+        if (googleUser == null) {
+          return {'success': false, 'message': 'Google sign-in cancelled'};
+        }
+        final googleAuth = await googleUser.authentication;
+        final credential = GoogleAuthProvider.credential(
+          accessToken: googleAuth.accessToken,
+          idToken: googleAuth.idToken,
+        );
+        userCredential = await _auth.signInWithCredential(credential);
       }
-      final googleAuth = await googleUser.authentication;
-      final credential = GoogleAuthProvider.credential(
-        accessToken: googleAuth.accessToken,
-        idToken: googleAuth.idToken,
-      );
-      final userCredential = await _auth.signInWithCredential(credential);
+
       final user = userCredential.user;
       if (user == null) return {'success': false, 'message': 'Sign-in failed'};
 
