@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:go_router/go_router.dart';
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/router/app_router.dart';
 import '../../../member/presentation/pages/member_page.dart';
 import 'subscription_page.dart';
 
@@ -23,6 +25,7 @@ class _MessSettingsPageState extends State<MessSettingsPage> {
   int _memberCount = 0;
   String _mealEntryMode = 'manual';
   bool _isManager = false;
+  bool _isFirstSetup = false; // true when coming from mess creation
 
   @override
   void initState() {
@@ -59,6 +62,7 @@ class _MessSettingsPageState extends State<MessSettingsPage> {
           .doc(messId)
           .get();
       final data = messDoc.data() ?? {};
+      final setupComplete = data['setupComplete'] as bool? ?? false;
 
       final membersSnap = await FirebaseFirestore.instance
           .collection('messes')
@@ -75,6 +79,7 @@ class _MessSettingsPageState extends State<MessSettingsPage> {
           _mealEntryMode = data['mealEntryMode'] as String? ?? 'manual';
           _memberCount = membersSnap.docs.length;
           _isManager = role == 'manager' || role == 'admin';
+          _isFirstSetup = !setupComplete;
           _isLoading = false;
         });
       }
@@ -96,9 +101,14 @@ class _MessSettingsPageState extends State<MessSettingsPage> {
     }
     setState(() => _isSaving = true);
     try {
-      await FirebaseFirestore.instance.collection('messes').doc(_messId).update(
-        {'name': _nameCtrl.text.trim(), 'address': _addressCtrl.text.trim()},
-      );
+      await FirebaseFirestore.instance
+          .collection('messes')
+          .doc(_messId)
+          .update({
+            'name': _nameCtrl.text.trim(),
+            'address': _addressCtrl.text.trim(),
+            'setupComplete': true,
+          });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -107,6 +117,10 @@ class _MessSettingsPageState extends State<MessSettingsPage> {
             behavior: SnackBarBehavior.floating,
           ),
         );
+        // If first-time setup, go to dashboard
+        if (_isFirstSetup) {
+          context.go(AppRouter.dashboard);
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -148,13 +162,14 @@ class _MessSettingsPageState extends State<MessSettingsPage> {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7FA),
       appBar: AppBar(
-        title: const Text(
-          'Mess Settings',
-          style: TextStyle(fontWeight: FontWeight.bold),
+        title: Text(
+          _isFirstSetup ? 'Setup Your Mess' : 'Mess Settings',
+          style: const TextStyle(fontWeight: FontWeight.bold),
         ),
         backgroundColor: AppColors.primaryGreen,
         foregroundColor: Colors.white,
         elevation: 0,
+        automaticallyImplyLeading: !_isFirstSetup,
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -380,9 +395,9 @@ class _MessSettingsPageState extends State<MessSettingsPage> {
                         strokeWidth: 2,
                       ),
                     )
-                  : const Text(
-                      'Save Changes',
-                      style: TextStyle(
+                  : Text(
+                      _isFirstSetup ? 'Save & Go to Dashboard' : 'Save Changes',
+                      style: const TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.bold,
                       ),

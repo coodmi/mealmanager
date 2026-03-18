@@ -22,17 +22,47 @@ class DashboardPage extends StatefulWidget {
 
 class _DashboardPageState extends State<DashboardPage> {
   int _selectedIndex = 2;
-  final String _selectedMonth = 'February 2026';
   String _selectedTab = 'My';
-  String _messName = 'Loading...';
+  String _messName = '';
+  String _plan = 'free';
+  String _currentMonth = '';
+
+  // Real data from Firestore
+  double _myBalance = 0;
+  double _messBalance = 0;
+  double _myDeposit = 0;
+  double _myExpense = 0;
+  double _messDeposit = 0;
+  double _messExpense = 0;
+  double _mealRate = 0;
+  int _myMeals = 0;
+  int _messMeals = 0;
 
   @override
   void initState() {
     super.initState();
-    _loadMessData();
+    final now = DateTime.now();
+    _currentMonth = '${_monthName(now.month)} ${now.year}';
+    _loadDashboardData();
   }
 
-  Future<void> _loadMessData() async {
+  String _monthName(int m) => const [
+    '',
+    'January',
+    'February',
+    'March',
+    'April',
+    'May',
+    'June',
+    'July',
+    'August',
+    'September',
+    'October',
+    'November',
+    'December',
+  ][m];
+
+  Future<void> _loadDashboardData() async {
     try {
       User? user = FirebaseAuth.instance.currentUser;
       if (user == null) {
@@ -42,18 +72,112 @@ class _DashboardPageState extends State<DashboardPage> {
         );
       }
       if (user == null) return;
+
       final userDoc = await FirebaseFirestore.instance
           .collection('users')
           .doc(user.uid)
           .get();
-      final messId = userDoc.data()?['messId'] as String?;
-      if (messId == null || messId.isEmpty) return;
+      final messId = userDoc.data()?['messId'] as String? ?? '';
+      if (messId.isEmpty) return;
+
       final messDoc = await FirebaseFirestore.instance
           .collection('messes')
           .doc(messId)
           .get();
-      final name = messDoc.data()?['name'] as String?;
-      if (mounted && name != null) setState(() => _messName = name);
+      final messData = messDoc.data() ?? {};
+
+      // Current month key e.g. "2026-03"
+      final now = DateTime.now();
+      final monthKey = '${now.year}-${now.month.toString().padLeft(2, '0')}';
+
+      // My balance from user doc
+      final myBal = (userDoc.data()?['balance'] as num?)?.toDouble() ?? 0;
+
+      // Mess balance
+      final messBal = (messData['balance'] as num?)?.toDouble() ?? 0;
+
+      // Monthly stats from subcollection
+      double myDep = 0, myExp = 0, messDep = 0, messExp = 0;
+      int myMeals = 0, messMeals = 0;
+      double mealRate = 0;
+
+      // My deposits this month
+      final myDepSnap = await FirebaseFirestore.instance
+          .collection('messes')
+          .doc(messId)
+          .collection('deposits')
+          .where('userId', isEqualTo: user.uid)
+          .where('monthKey', isEqualTo: monthKey)
+          .get();
+      for (final d in myDepSnap.docs) {
+        myDep += (d.data()['amount'] as num?)?.toDouble() ?? 0;
+      }
+
+      // All deposits this month (mess total)
+      final allDepSnap = await FirebaseFirestore.instance
+          .collection('messes')
+          .doc(messId)
+          .collection('deposits')
+          .where('monthKey', isEqualTo: monthKey)
+          .get();
+      for (final d in allDepSnap.docs) {
+        messDep += (d.data()['amount'] as num?)?.toDouble() ?? 0;
+      }
+
+      // All expenses this month
+      final expSnap = await FirebaseFirestore.instance
+          .collection('messes')
+          .doc(messId)
+          .collection('expenses')
+          .where('monthKey', isEqualTo: monthKey)
+          .get();
+      for (final d in expSnap.docs) {
+        final amt = (d.data()['amount'] as num?)?.toDouble() ?? 0;
+        messExp += amt;
+        if (d.data()['userId'] == user.uid) myExp += amt;
+      }
+
+      // My meals this month
+      final myMealSnap = await FirebaseFirestore.instance
+          .collection('messes')
+          .doc(messId)
+          .collection('meals')
+          .where('userId', isEqualTo: user.uid)
+          .where('monthKey', isEqualTo: monthKey)
+          .get();
+      for (final d in myMealSnap.docs) {
+        myMeals += ((d.data()['count'] as num?)?.toInt() ?? 1);
+      }
+
+      // Total mess meals this month
+      final allMealSnap = await FirebaseFirestore.instance
+          .collection('messes')
+          .doc(messId)
+          .collection('meals')
+          .where('monthKey', isEqualTo: monthKey)
+          .get();
+      for (final d in allMealSnap.docs) {
+        messMeals += ((d.data()['count'] as num?)?.toInt() ?? 1);
+      }
+
+      // Meal rate = total expense / total meals
+      if (messMeals > 0) mealRate = messExp / messMeals;
+
+      if (mounted) {
+        setState(() {
+          _messName = messData['name'] as String? ?? '';
+          _plan = messData['subscription'] as String? ?? 'free';
+          _myBalance = myBal;
+          _messBalance = messBal;
+          _myDeposit = myDep;
+          _myExpense = myExp;
+          _messDeposit = messDep;
+          _messExpense = messExp;
+          _mealRate = mealRate;
+          _myMeals = myMeals;
+          _messMeals = messMeals;
+        });
+      }
     } catch (_) {}
   }
 
@@ -137,7 +261,7 @@ class _DashboardPageState extends State<DashboardPage> {
                               children: [
                                 Flexible(
                                   child: Text(
-                                    _messName,
+                                    _messName.isEmpty ? 'My Mess' : _messName,
                                     style: const TextStyle(
                                       fontSize: 20,
                                       fontWeight: FontWeight.bold,
@@ -156,9 +280,9 @@ class _DashboardPageState extends State<DashboardPage> {
                                     color: Colors.white.withValues(alpha: 0.25),
                                     borderRadius: BorderRadius.circular(12),
                                   ),
-                                  child: const Text(
-                                    'FREE',
-                                    style: TextStyle(
+                                  child: Text(
+                                    _plan.toUpperCase(),
+                                    style: const TextStyle(
                                       fontSize: 10,
                                       color: Colors.white,
                                       fontWeight: FontWeight.bold,
@@ -169,7 +293,7 @@ class _DashboardPageState extends State<DashboardPage> {
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              _selectedMonth,
+                              _currentMonth,
                               style: const TextStyle(
                                 fontSize: 13,
                                 color: Colors.white70,
@@ -351,9 +475,9 @@ class _DashboardPageState extends State<DashboardPage> {
             ],
           ),
           const SizedBox(height: 8),
-          const Text(
-            '৳1,250',
-            style: TextStyle(
+          Text(
+            '৳${_myBalance.toStringAsFixed(0)}',
+            style: const TextStyle(
               color: Colors.white,
               fontSize: 36,
               fontWeight: FontWeight.bold,
@@ -366,16 +490,16 @@ class _DashboardPageState extends State<DashboardPage> {
               color: Colors.white.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: const Row(
+            child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
+                const Text(
                   'Mess Balance',
                   style: TextStyle(color: Colors.white70, fontSize: 13),
                 ),
                 Text(
-                  '৳ 5,430',
-                  style: TextStyle(
+                  '৳ ${_messBalance.toStringAsFixed(0)}',
+                  style: const TextStyle(
                     color: Colors.white,
                     fontSize: 14,
                     fontWeight: FontWeight.bold,
@@ -431,7 +555,7 @@ class _DashboardPageState extends State<DashboardPage> {
               Expanded(
                 child: _buildOverviewCard(
                   'Deposit',
-                  '৳ 3,000',
+                  '৳ ${_selectedTab == 'My' ? _myDeposit.toStringAsFixed(0) : _messDeposit.toStringAsFixed(0)}',
                   Icons.arrow_downward,
                   Colors.green,
                   const Color(0xFFE8F5E9),
@@ -441,7 +565,7 @@ class _DashboardPageState extends State<DashboardPage> {
               Expanded(
                 child: _buildOverviewCard(
                   'Expense',
-                  '৳ 1,750',
+                  '৳ ${_selectedTab == 'My' ? _myExpense.toStringAsFixed(0) : _messExpense.toStringAsFixed(0)}',
                   Icons.arrow_upward,
                   Colors.red,
                   const Color(0xFFFFEBEE),
@@ -455,7 +579,7 @@ class _DashboardPageState extends State<DashboardPage> {
               Expanded(
                 child: _buildOverviewCard(
                   'Meal Rate',
-                  '৳ 45',
+                  '৳ ${_mealRate.toStringAsFixed(1)}',
                   Icons.restaurant,
                   Colors.grey.shade600,
                   const Color(0xFFF5F5F5),
@@ -465,7 +589,7 @@ class _DashboardPageState extends State<DashboardPage> {
               Expanded(
                 child: _buildOverviewCard(
                   'Meals',
-                  '38',
+                  '${_selectedTab == 'My' ? _myMeals : _messMeals}',
                   Icons.fastfood,
                   Colors.orange,
                   const Color(0xFFFFF3E0),
@@ -750,11 +874,18 @@ class _DashboardPageState extends State<DashboardPage> {
             ],
           ),
           const SizedBox(height: 12),
-          _buildMealRow('Breakfast', '8', Icons.free_breakfast),
-          const SizedBox(height: 8),
-          _buildMealRow('Lunch', '12', Icons.lunch_dining),
-          const SizedBox(height: 8),
-          _buildMealRow('Dinner', '10', Icons.dinner_dining),
+          if (_myMeals == 0)
+            Text(
+              'No meals recorded today',
+              style: TextStyle(fontSize: 13, color: Colors.grey.shade400),
+            )
+          else ...[
+            _buildMealRow(
+              'This Month',
+              '$_myMeals meals',
+              Icons.free_breakfast,
+            ),
+          ],
         ],
       ),
     );
@@ -826,41 +957,14 @@ class _DashboardPageState extends State<DashboardPage> {
             ],
           ),
           const SizedBox(height: 12),
-          CircleAvatar(
-            radius: 24,
-            backgroundColor: Colors.orange.withValues(alpha: 0.15),
-            child: const Text(
-              'KA',
-              style: TextStyle(
-                color: Colors.orange,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'Karim Ahmed',
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: AppColors.textDark,
-            ),
+          Text(
+            'No schedule set',
+            style: TextStyle(fontSize: 13, color: Colors.grey.shade400),
           ),
           const SizedBox(height: 4),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-            decoration: BoxDecoration(
-              color: Colors.orange.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: const Text(
-              'Today',
-              style: TextStyle(
-                fontSize: 11,
-                color: Colors.orange,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
+          Text(
+            'Set up in Mess Settings',
+            style: TextStyle(fontSize: 11, color: Colors.grey.shade400),
           ),
         ],
       ),

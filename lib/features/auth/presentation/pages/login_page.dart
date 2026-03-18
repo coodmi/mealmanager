@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_strings.dart';
 import '../../../../core/router/app_router.dart';
@@ -261,13 +262,29 @@ class _LoginPageState extends State<LoginPage>
             role == 'manager';
 
         if (isAdmin) {
-          // Admin users go directly to admin panel
           context.go(AppRouter.admin);
-        } else if (userData != null && userData['messId'] != null) {
-          // User has a mess, go directly to dashboard
-          context.go(AppRouter.dashboard);
+        } else if (userData != null &&
+            userData['messId'] != null &&
+            (userData['messId'] as String).isNotEmpty) {
+          // Check if mess setup is complete
+          final messId = userData['messId'] as String;
+          try {
+            final messDoc = await FirebaseFirestore.instance
+                .collection('messes')
+                .doc(messId)
+                .get();
+            final setupComplete =
+                messDoc.data()?['setupComplete'] as bool? ?? false;
+            if (!mounted) return;
+            if (setupComplete) {
+              context.go(AppRouter.dashboard);
+            } else {
+              context.go(AppRouter.messSettings);
+            }
+          } catch (_) {
+            if (mounted) context.go(AppRouter.dashboard);
+          }
         } else {
-          // User doesn't have a mess, go to create/join mess page
           context.go(AppRouter.createJoinMess);
         }
       } else {

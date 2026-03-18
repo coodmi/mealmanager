@@ -35,6 +35,7 @@ class FirebaseMessService {
         'members': [userId],
         'balance': 0,
         'subscription': 'free',
+        'setupComplete': false,
         'createdAt': FieldValue.serverTimestamp(),
       });
 

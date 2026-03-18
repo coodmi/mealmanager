@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../../core/services/firebase_mess_service.dart';
@@ -482,9 +483,24 @@ class _CreateJoinMessPageState extends State<CreateJoinMessPage> {
         ),
         actions: [
           TextButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(ctx);
-              context.go(AppRouter.dashboard);
+              // Mark setup complete so they can access dashboard
+              final user = FirebaseAuth.instance.currentUser;
+              if (user != null) {
+                final userDoc = await FirebaseFirestore.instance
+                    .collection('users')
+                    .doc(user.uid)
+                    .get();
+                final messId = userDoc.data()?['messId'] as String? ?? '';
+                if (messId.isNotEmpty) {
+                  await FirebaseFirestore.instance
+                      .collection('messes')
+                      .doc(messId)
+                      .update({'setupComplete': true});
+                }
+              }
+              if (context.mounted) context.go(AppRouter.dashboard);
             },
             child: const Text('Skip for now'),
           ),
@@ -502,13 +518,7 @@ class _CreateJoinMessPageState extends State<CreateJoinMessPage> {
             ),
             onPressed: () {
               Navigator.pop(ctx);
-              context.go(AppRouter.dashboard);
-              // Navigate to mess settings via menu
-              Future.delayed(const Duration(milliseconds: 300), () {
-                if (context.mounted) {
-                  context.push(AppRouter.messSettings);
-                }
-              });
+              context.go(AppRouter.messSettings);
             },
           ),
         ],
