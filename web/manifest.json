@@ -1,6 +1,6 @@
 {
-    "name": "mealmanager",
-    "short_name": "mealmanager",
+    "name": "Meal Manager",
+    "short_name": "Meal Manager",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

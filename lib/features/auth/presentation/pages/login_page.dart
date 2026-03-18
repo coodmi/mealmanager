@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_strings.dart';
 import '../../../../core/router/app_router.dart';
@@ -251,6 +252,11 @@ class _LoginPageState extends State<LoginPage>
     setState(() => _isLoading = true);
 
     try {
+      // Always sign out any existing session before logging in a new user.
+      // This prevents stale sessions (e.g. super admin) from persisting
+      // when a different user tries to log in.
+      await FirebaseAuth.instance.signOut();
+
       final result = await AuthService.loginUser(
         email: _loginEmailController.text.trim(),
         password: _loginPasswordController.text,
