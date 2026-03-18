@@ -23,88 +23,14 @@ class _MealPageWorkingState extends State<MealPageWorking>
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
     _loadMessId();
-    _addTestMembers();
   }
 
   Future<void> _loadMessId() async {
     final messId = await FirebaseMessService.getMessId();
-    print('Loaded Mess ID: $messId');
     setState(() {
       _messId = messId;
       _isLoading = false;
     });
-  }
-
-  Future<void> _addTestMembers() async {
-    try {
-      final messId = await FirebaseMessService.getMessId();
-      if (messId.isEmpty) {
-        print('No mess ID found');
-        return;
-      }
-
-      final snapshot = await FirebaseFirestore.instance
-          .collection('members')
-          .where('messId', isEqualTo: messId)
-          .get();
-
-      print('Existing members count: ${snapshot.docs.length}');
-
-      if (snapshot.docs.isNotEmpty) return;
-
-      print('Adding test members...');
-
-      final members = [
-        {'name': 'John Doe', 'phone': '+880 1712-345678', 'balance': 1250.0},
-        {'name': 'Jane Smith', 'phone': '+880 1812-345678', 'balance': 2100.0},
-        {
-          'name': 'Mike Johnson',
-          'phone': '+880 1912-345678',
-          'balance': -500.0,
-        },
-        {
-          'name': 'Sarah Williams',
-          'phone': '+880 1612-345678',
-          'balance': 3200.0,
-        },
-      ];
-
-      final batch = FirebaseFirestore.instance.batch();
-
-      for (final member in members) {
-        final docRef = FirebaseFirestore.instance.collection('members').doc();
-        batch.set(docRef, {
-          'name': member['name'],
-          'phone': member['phone'],
-          'messId': messId,
-          'balance': member['balance'],
-          'isActive': true,
-          'joinedDate': Timestamp.now(),
-        });
-      }
-
-      await batch.commit();
-      print('Test members added successfully');
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Test members added successfully!'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
-    } catch (e) {
-      print('Error adding test members: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error adding test members: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
   }
 
   @override
@@ -254,6 +180,8 @@ class _MealPageWorkingState extends State<MealPageWorking>
 
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
+          .collection('messes')
+          .doc(_messId)
           .collection('meals')
           .where('messId', isEqualTo: _messId)
           .snapshots(),
@@ -374,6 +302,8 @@ class _MealPageWorkingState extends State<MealPageWorking>
 
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
+          .collection('messes')
+          .doc(_messId)
           .collection('meals')
           .where('messId', isEqualTo: _messId)
           .snapshots(),
@@ -392,10 +322,6 @@ class _MealPageWorkingState extends State<MealPageWorking>
           return DateFormat('yyyy-MM-dd').format(mealDate) == dateKey &&
               data['mealType'] == mealType;
         }).toList();
-
-        print(
-          'Filtered meals for $mealType on $dateKey: ${filteredMeals.length}',
-        );
 
         return ListView(
           padding: const EdgeInsets.all(16),
@@ -588,27 +514,22 @@ class _MealPageWorkingState extends State<MealPageWorking>
   }
 
   void _showAddMealDialog() async {
-    print('Opening add meal dialog...');
-    print('Current Mess ID: $_messId');
-
     try {
       final membersSnapshot = await FirebaseFirestore.instance
+          .collection('messes')
+          .doc(_messId)
           .collection('members')
-          .where('messId', isEqualTo: _messId)
           .get();
-
-      print('Members found: ${membersSnapshot.docs.length}');
 
       if (!mounted) return;
 
       if (membersSnapshot.docs.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('No members found. Adding test members...'),
+            content: Text('No members found. Add members first.'),
             backgroundColor: Colors.orange,
           ),
         );
-        await _addTestMembers();
         return;
       }
 
@@ -624,7 +545,6 @@ class _MealPageWorkingState extends State<MealPageWorking>
         final data = doc.data();
         data['id'] = doc.id;
         uniqueMembers[doc.id] = data;
-        print('Member: ${data['name']} (${doc.id})');
       }
 
       if (!mounted) return;
@@ -673,7 +593,6 @@ class _MealPageWorkingState extends State<MealPageWorking>
                       );
                     }).toList(),
                     onChanged: (value) {
-                      print('Selected host member ID: $value');
                       setDialogState(() {
                         guestHostMember = value != null
                             ? uniqueMembers[value]
@@ -708,7 +627,6 @@ class _MealPageWorkingState extends State<MealPageWorking>
                       );
                     }).toList(),
                     onChanged: (value) {
-                      print('Selected member ID: $value');
                       setDialogState(() {
                         selectedMember = value != null
                             ? uniqueMembers[value]
@@ -735,7 +653,6 @@ class _MealPageWorkingState extends State<MealPageWorking>
                     DropdownMenuItem(value: 'dinner', child: Text('Dinner')),
                   ],
                   onChanged: (value) {
-                    print('Selected meal type: $value');
                     setDialogState(() {
                       selectedMealType = value!;
                     });
@@ -750,12 +667,6 @@ class _MealPageWorkingState extends State<MealPageWorking>
               ),
               ElevatedButton(
                 onPressed: () async {
-                  print('Add button pressed');
-                  print('Is guest: $isGuest');
-                  print('Selected member: $selectedMember');
-                  print('Guest name: ${guestNameController.text}');
-                  print('Selected meal type: $selectedMealType');
-
                   if (isGuest) {
                     if (guestHostMember == null) {
                       ScaffoldMessenger.of(context).showSnackBar(
@@ -799,8 +710,9 @@ class _MealPageWorkingState extends State<MealPageWorking>
                     if (!isGuest) {
                       // Check if meal already exists for member
                       final existingMealQuery = await FirebaseFirestore.instance
+                          .collection('messes')
+                          .doc(_messId)
                           .collection('meals')
-                          .where('messId', isEqualTo: _messId)
                           .where('memberId', isEqualTo: selectedMember!['id'])
                           .where('mealType', isEqualTo: selectedMealType)
                           .where(
@@ -842,16 +754,16 @@ class _MealPageWorkingState extends State<MealPageWorking>
                       'mealType': selectedMealType,
                       'date': Timestamp.fromDate(mealDate),
                       'count': 1.0,
+                      'monthKey':
+                          '${mealDate.year}-${mealDate.month.toString().padLeft(2, '0')}',
                       'createdAt': Timestamp.now(),
                     };
 
-                    print('Adding meal with data: $mealData');
-
-                    final docRef = await FirebaseFirestore.instance
+                    await FirebaseFirestore.instance
+                        .collection('messes')
+                        .doc(_messId)
                         .collection('meals')
                         .add(mealData);
-
-                    print('Meal added successfully with ID: ${docRef.id}');
 
                     if (!mounted) return;
                     Navigator.pop(dialogContext);
@@ -869,7 +781,6 @@ class _MealPageWorkingState extends State<MealPageWorking>
                       ),
                     );
                   } catch (e) {
-                    print('Error adding meal: $e');
                     if (!mounted) return;
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
@@ -890,7 +801,6 @@ class _MealPageWorkingState extends State<MealPageWorking>
         ),
       );
     } catch (e) {
-      print('Error in _showAddMealDialog: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -918,6 +828,8 @@ class _MealPageWorkingState extends State<MealPageWorking>
             onPressed: () async {
               try {
                 await FirebaseFirestore.instance
+                    .collection('messes')
+                    .doc(_messId)
                     .collection('meals')
                     .doc(mealId)
                     .delete();

@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:intl/intl.dart';
 import '../../../../core/constants/app_colors.dart';
 
 class TransactionPage extends StatefulWidget {
@@ -11,11 +14,27 @@ class TransactionPage extends StatefulWidget {
 class _TransactionPageState extends State<TransactionPage>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  String _messId = '';
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
+    _loadIds();
+  }
+
+  Future<void> _loadIds() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+    final userDoc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .get();
+    final messId = userDoc.data()?['messId'] as String? ?? '';
+    if (mounted)
+      setState(() {
+        _messId = messId;
+      });
   }
 
   @override
@@ -36,11 +55,11 @@ class _TransactionPageState extends State<TransactionPage>
               bottom: false,
               child: Column(
                 children: [
-                  Padding(
-                    padding: const EdgeInsets.all(16),
+                  const Padding(
+                    padding: EdgeInsets.all(16),
                     child: Row(
                       children: [
-                        const Text(
+                        Text(
                           'Transactions',
                           style: TextStyle(
                             fontSize: 20,
@@ -68,140 +87,242 @@ class _TransactionPageState extends State<TransactionPage>
             ),
           ),
           Expanded(
-            child: TabBarView(
-              controller: _tabController,
-              children: [
-                _buildAllTransactions(),
-                _buildDeposits(),
-                _buildExpenses(),
-              ],
-            ),
+            child: _messId.isEmpty
+                ? const Center(child: CircularProgressIndicator())
+                : TabBarView(
+                    controller: _tabController,
+                    children: [
+                      _buildAllTab(),
+                      _buildDepositsTab(),
+                      _buildExpensesTab(),
+                    ],
+                  ),
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showAddTransactionDialog(),
-        backgroundColor: AppColors.primaryGreen,
-        icon: const Icon(Icons.add),
-        label: const Text('Add Transaction'),
+    );
+  }
+
+  Widget _buildAllTab() {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('messes')
+          .doc(_messId)
+          .collection('transactions')
+          .orderBy('createdAt', descending: true)
+          .snapshots(),
+      builder: (context, txSnap) {
+        return StreamBuilder<QuerySnapshot>(
+          stream: FirebaseFirestore.instance
+              .collection('messes')
+              .doc(_messId)
+              .collection('expenses')
+              .orderBy('createdAt', descending: true)
+              .snapshots(),
+          builder: (context, expSnap) {
+            if (!txSnap.hasData || !expSnap.hasData) {
+              return const Center(child: CircularProgressIndicator());
+            }
+
+            // Combine deposits + expenses into one list sorted by date
+            final items = <Map<String, dynamic>>[];
+
+            for (final doc in txSnap.data!.docs) {
+              final d = doc.data() as Map<String, dynamic>;
+              items.add({...d, '_type': 'deposit', '_id': doc.id});
+            }
+            for (final doc in expSnap.data!.docs) {
+              final d = doc.data() as Map<String, dynamic>;
+              items.add({...d, '_type': 'expense', '_id': doc.id});
+            }
+
+            // Sort by createdAt descending
+            items.sort((a, b) {
+              final aTs = a['createdAt'] as Timestamp?;
+              final bTs = b['createdAt'] as Timestamp?;
+              if (aTs == null && bTs == null) return 0;
+              if (aTs == null) return 1;
+              if (bTs == null) return -1;
+              return bTs.compareTo(aTs);
+            });
+
+            // Compute totals
+            double totalDep = 0, totalExp = 0;
+            for (final item in items) {
+              final amt = (item['amount'] as num?)?.toDouble() ?? 0;
+              if (item['_type'] == 'deposit')
+                totalDep += amt;
+              else
+                totalExp += amt;
+            }
+
+            return ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                _buildSummaryCard(totalDep - totalExp, totalDep, totalExp),
+                const SizedBox(height: 16),
+                if (items.isEmpty)
+                  Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(32),
+                      child: Text(
+                        'No transactions yet',
+                        style: TextStyle(color: Colors.grey.shade400),
+                      ),
+                    ),
+                  )
+                else
+                  ...items.map((item) => _buildTxCard(item)),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildDepositsTab() {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('messes')
+          .doc(_messId)
+          .collection('transactions')
+          .where('type', isEqualTo: 'deposit')
+          .orderBy('createdAt', descending: true)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData)
+          return const Center(child: CircularProgressIndicator());
+        final docs = snapshot.data!.docs;
+        if (docs.isEmpty) {
+          return Center(
+            child: Text(
+              'No deposits yet',
+              style: TextStyle(color: Colors.grey.shade400),
+            ),
+          );
+        }
+        return ListView(
+          padding: const EdgeInsets.all(16),
+          children: docs.map((doc) {
+            final d = doc.data() as Map<String, dynamic>;
+            return _buildTxCard({...d, '_type': 'deposit'});
+          }).toList(),
+        );
+      },
+    );
+  }
+
+  Widget _buildExpensesTab() {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('messes')
+          .doc(_messId)
+          .collection('expenses')
+          .orderBy('createdAt', descending: true)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData)
+          return const Center(child: CircularProgressIndicator());
+        final docs = snapshot.data!.docs;
+        if (docs.isEmpty) {
+          return Center(
+            child: Text(
+              'No expenses yet',
+              style: TextStyle(color: Colors.grey.shade400),
+            ),
+          );
+        }
+        return ListView(
+          padding: const EdgeInsets.all(16),
+          children: docs.map((doc) {
+            final d = doc.data() as Map<String, dynamic>;
+            return _buildTxCard({...d, '_type': 'expense'});
+          }).toList(),
+        );
+      },
+    );
+  }
+
+  Widget _buildTxCard(Map<String, dynamic> data) {
+    final isDeposit = data['_type'] == 'deposit';
+    final amount = (data['amount'] as num?)?.toDouble() ?? 0;
+    final color = isDeposit ? Colors.green : Colors.red;
+    final icon = isDeposit ? Icons.arrow_downward : Icons.arrow_upward;
+
+    String title = isDeposit
+        ? (data['memberName'] as String? ?? 'Deposit')
+        : (data['category'] as String? ?? 'Expense');
+    String subtitle = isDeposit
+        ? (data['method'] as String? ?? 'Cash')
+        : (data['submittedByName'] as String? ?? '');
+    if ((data['note'] as String? ?? '').isNotEmpty) {
+      subtitle += subtitle.isNotEmpty ? ' · ${data['note']}' : data['note'];
+    }
+
+    String timeStr = '';
+    final ts = data['createdAt'] as Timestamp?;
+    if (ts != null) {
+      timeStr = DateFormat('MMM dd, yyyy · hh:mm a').format(ts.toDate());
+    }
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 10),
+      elevation: 1,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        leading: Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(icon, color: color, size: 22),
+        ),
+        title: Text(
+          title,
+          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+        ),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (subtitle.isNotEmpty) ...[
+              const SizedBox(height: 2),
+              Text(
+                subtitle,
+                style: TextStyle(color: AppColors.textLight, fontSize: 12),
+              ),
+            ],
+            if (timeStr.isNotEmpty) ...[
+              const SizedBox(height: 2),
+              Text(
+                timeStr,
+                style: TextStyle(color: Colors.grey.shade400, fontSize: 11),
+              ),
+            ],
+          ],
+        ),
+        trailing: Text(
+          '${isDeposit ? '+' : '-'}৳${amount.toStringAsFixed(0)}',
+          style: TextStyle(
+            color: color,
+            fontSize: 15,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
       ),
     );
   }
 
-  Widget _buildAllTransactions() {
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        _buildSummaryCard(),
-        const SizedBox(height: 16),
-        _buildTransactionItem(
-          'Deposit',
-          'John Doe deposited money',
-          '৳5,000',
-          Icons.arrow_downward,
-          Colors.green,
-          'Today, 10:30 AM',
-        ),
-        _buildTransactionItem(
-          'Expense',
-          'Grocery shopping',
-          '৳2,500',
-          Icons.arrow_upward,
-          Colors.red,
-          'Today, 9:15 AM',
-        ),
-        _buildTransactionItem(
-          'Deposit',
-          'Jane Smith deposited money',
-          '৳3,000',
-          Icons.arrow_downward,
-          Colors.green,
-          'Yesterday, 6:00 PM',
-        ),
-        _buildTransactionItem(
-          'Expense',
-          'Electricity bill',
-          '৳1,200',
-          Icons.arrow_upward,
-          Colors.red,
-          'Yesterday, 2:30 PM',
-        ),
-      ],
-    );
-  }
-
-  Widget _buildDeposits() {
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        _buildTransactionItem(
-          'Deposit',
-          'John Doe deposited money',
-          '৳5,000',
-          Icons.arrow_downward,
-          Colors.green,
-          'Today, 10:30 AM',
-        ),
-        _buildTransactionItem(
-          'Deposit',
-          'Jane Smith deposited money',
-          '৳3,000',
-          Icons.arrow_downward,
-          Colors.green,
-          'Yesterday, 6:00 PM',
-        ),
-        _buildTransactionItem(
-          'Deposit',
-          'Mike Johnson deposited money',
-          '৳4,500',
-          Icons.arrow_downward,
-          Colors.green,
-          '2 days ago, 11:00 AM',
-        ),
-      ],
-    );
-  }
-
-  Widget _buildExpenses() {
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        _buildTransactionItem(
-          'Expense',
-          'Grocery shopping',
-          '৳2,500',
-          Icons.arrow_upward,
-          Colors.red,
-          'Today, 9:15 AM',
-        ),
-        _buildTransactionItem(
-          'Expense',
-          'Electricity bill',
-          '৳1,200',
-          Icons.arrow_upward,
-          Colors.red,
-          'Yesterday, 2:30 PM',
-        ),
-        _buildTransactionItem(
-          'Expense',
-          'Gas bill',
-          '৳800',
-          Icons.arrow_upward,
-          Colors.red,
-          '2 days ago, 3:45 PM',
-        ),
-      ],
-    );
-  }
-
-  Widget _buildSummaryCard() {
+  Widget _buildSummaryCard(double balance, double income, double expense) {
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          gradient: LinearGradient(
+          gradient: const LinearGradient(
             colors: [AppColors.primaryGreen, AppColors.buttonGreen],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
@@ -211,13 +332,13 @@ class _TransactionPageState extends State<TransactionPage>
         child: Column(
           children: [
             const Text(
-              'Total Balance',
+              'Net Balance',
               style: TextStyle(color: Colors.white70, fontSize: 14),
             ),
             const SizedBox(height: 8),
-            const Text(
-              '৳12,500',
-              style: TextStyle(
+            Text(
+              '৳${balance.toStringAsFixed(0)}',
+              style: const TextStyle(
                 color: Colors.white,
                 fontSize: 32,
                 fontWeight: FontWeight.bold,
@@ -227,9 +348,17 @@ class _TransactionPageState extends State<TransactionPage>
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                _buildSummaryItem('Income', '৳15,000', Icons.arrow_downward),
+                _buildSummaryItem(
+                  'Deposits',
+                  '৳${income.toStringAsFixed(0)}',
+                  Icons.arrow_downward,
+                ),
                 Container(height: 40, width: 1, color: Colors.white30),
-                _buildSummaryItem('Expense', '৳2,500', Icons.arrow_upward),
+                _buildSummaryItem(
+                  'Expenses',
+                  '৳${expense.toStringAsFixed(0)}',
+                  Icons.arrow_upward,
+                ),
               ],
             ),
           ],
@@ -256,133 +385,11 @@ class _TransactionPageState extends State<TransactionPage>
           amount,
           style: const TextStyle(
             color: Colors.white,
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildTransactionItem(
-    String type,
-    String description,
-    String amount,
-    IconData icon,
-    Color color,
-    String time,
-  ) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      elevation: 1,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        leading: Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Icon(icon, color: color, size: 24),
-        ),
-        title: Text(
-          type,
-          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 4),
-            Text(
-              description,
-              style: TextStyle(color: AppColors.textLight, fontSize: 13),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              time,
-              style: TextStyle(color: AppColors.textLight, fontSize: 11),
-            ),
-          ],
-        ),
-        trailing: Text(
-          amount,
-          style: TextStyle(
-            color: color,
             fontSize: 16,
             fontWeight: FontWeight.bold,
           ),
         ),
-      ),
-    );
-  }
-
-  void _showAddTransactionDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Add Transaction'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              decoration: InputDecoration(
-                labelText: 'Amount',
-                prefixText: '৳',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              keyboardType: TextInputType.number,
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              decoration: InputDecoration(
-                labelText: 'Description',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            DropdownButtonFormField<String>(
-              decoration: InputDecoration(
-                labelText: 'Type',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              items: const [
-                DropdownMenuItem(value: 'deposit', child: Text('Deposit')),
-                DropdownMenuItem(value: 'expense', child: Text('Expense')),
-              ],
-              onChanged: (value) {},
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Transaction added successfully!'),
-                  backgroundColor: Colors.green,
-                ),
-              );
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primaryGreen,
-            ),
-            child: const Text('Add'),
-          ),
-        ],
-      ),
+      ],
     );
   }
 }

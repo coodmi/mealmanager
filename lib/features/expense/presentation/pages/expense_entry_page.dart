@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/services/firebase_mess_service.dart';
 import '../../../../core/services/firebase_auth_service.dart';
@@ -20,7 +21,6 @@ class _ExpenseEntryPageState extends State<ExpenseEntryPage> {
   List<String> _selectedMembers = [];
   final _amountController = TextEditingController();
   final _noteController = TextEditingController();
-  bool _isDepositToBalance = false;
 
   final List<String> _categories = [
     'Daily Bazar',
@@ -117,19 +117,10 @@ class _ExpenseEntryPageState extends State<ExpenseEntryPage> {
               borderSide: BorderSide(color: Colors.grey.shade300),
             ),
           ),
-          items: _categories.map((category) {
-            return DropdownMenuItem(value: category, child: Text(category));
-          }).toList(),
-          onChanged:
-              (_isManager ||
-                  _selectedCategory == 'Daily Bazar' ||
-                  _selectedCategory == 'Other')
-              ? (value) {
-                  setState(() {
-                    _selectedCategory = value!;
-                  });
-                }
-              : null,
+          items: _categories
+              .map((c) => DropdownMenuItem(value: c, child: Text(c)))
+              .toList(),
+          onChanged: (value) => setState(() => _selectedCategory = value!),
         ),
         if (!_isManager &&
             _selectedCategory != 'Daily Bazar' &&
@@ -137,7 +128,7 @@ class _ExpenseEntryPageState extends State<ExpenseEntryPage> {
           Padding(
             padding: const EdgeInsets.only(top: 8),
             child: Text(
-              'Only manager can add ${_selectedCategory}',
+              'Only manager can add $_selectedCategory',
               style: const TextStyle(fontSize: 12, color: Colors.orange),
             ),
           ),
@@ -147,15 +138,15 @@ class _ExpenseEntryPageState extends State<ExpenseEntryPage> {
 
   Widget _buildMemberSelection() {
     return StreamBuilder<QuerySnapshot>(
+      // Fixed: query messes/{messId}/members subcollection
       stream: FirebaseFirestore.instance
+          .collection('messes')
+          .doc(_messId)
           .collection('members')
-          .where('messId', isEqualTo: _messId)
           .snapshots(),
       builder: (context, snapshot) {
-        if (!snapshot.hasData) {
+        if (!snapshot.hasData)
           return const Center(child: CircularProgressIndicator());
-        }
-
         final members = snapshot.data!.docs;
 
         return Column(
@@ -173,17 +164,13 @@ class _ExpenseEntryPageState extends State<ExpenseEntryPage> {
                   ),
                 ),
                 TextButton(
-                  onPressed: () {
-                    setState(() {
-                      if (_selectedMembers.length == members.length) {
-                        _selectedMembers.clear();
-                      } else {
-                        _selectedMembers = members
-                            .map((doc) => doc.id)
-                            .toList();
-                      }
-                    });
-                  },
+                  onPressed: () => setState(() {
+                    if (_selectedMembers.length == members.length) {
+                      _selectedMembers.clear();
+                    } else {
+                      _selectedMembers = members.map((d) => d.id).toList();
+                    }
+                  }),
                   child: Text(
                     _selectedMembers.length == members.length
                         ? 'Deselect All'
@@ -199,44 +186,38 @@ class _ExpenseEntryPageState extends State<ExpenseEntryPage> {
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: Colors.grey.shade300),
               ),
-              child: Column(
-                children: members.map((doc) {
-                  final data = doc.data() as Map<String, dynamic>;
-                  final memberId = doc.id;
-                  final isSelected = _selectedMembers.contains(memberId);
-
-                  return CheckboxListTile(
-                    value: isSelected,
-                    onChanged: (value) {
-                      setState(() {
-                        if (value == true) {
-                          _selectedMembers.add(memberId);
-                        } else {
-                          _selectedMembers.remove(memberId);
-                        }
-                        // Update deposit toggle visibility
-                        _updateDepositToggle();
-                      });
-                    },
-                    title: Text(data['name'] ?? 'Unknown'),
-                    subtitle: Text(data['phone'] ?? ''),
-                    activeColor: AppColors.primaryGreen,
-                  );
-                }).toList(),
-              ),
+              child: members.isEmpty
+                  ? const Padding(
+                      padding: EdgeInsets.all(16),
+                      child: Text(
+                        'No members found',
+                        style: TextStyle(color: AppColors.textLight),
+                      ),
+                    )
+                  : Column(
+                      children: members.map((doc) {
+                        final data = doc.data() as Map<String, dynamic>;
+                        final isSelected = _selectedMembers.contains(doc.id);
+                        return CheckboxListTile(
+                          value: isSelected,
+                          onChanged: (value) => setState(() {
+                            if (value == true) {
+                              _selectedMembers.add(doc.id);
+                            } else {
+                              _selectedMembers.remove(doc.id);
+                            }
+                          }),
+                          title: Text(data['name'] ?? 'Unknown'),
+                          subtitle: Text(data['phone'] ?? ''),
+                          activeColor: AppColors.primaryGreen,
+                        );
+                      }).toList(),
+                    ),
             ),
           ],
         );
       },
     );
-  }
-
-  void _updateDepositToggle() {
-    if (_selectedMembers.length != 1) {
-      setState(() {
-        _isDepositToBalance = false;
-      });
-    }
   }
 
   Widget _buildAmountField() {
@@ -270,21 +251,6 @@ class _ExpenseEntryPageState extends State<ExpenseEntryPage> {
             ),
           ),
         ),
-        if (_selectedMembers.length == 1)
-          Padding(
-            padding: const EdgeInsets.only(top: 8),
-            child: SwitchListTile(
-              value: _isDepositToBalance,
-              onChanged: (value) {
-                setState(() {
-                  _isDepositToBalance = value;
-                });
-              },
-              title: const Text('Deposit to member\'s balance'),
-              contentPadding: EdgeInsets.zero,
-              activeColor: AppColors.primaryGreen,
-            ),
-          ),
       ],
     );
   }
@@ -348,117 +314,73 @@ class _ExpenseEntryPageState extends State<ExpenseEntryPage> {
   }
 
   Future<void> _submitExpense() async {
-    // Validation
     if (_selectedMembers.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please select at least one member'),
-          backgroundColor: Colors.orange,
-        ),
-      );
+      _showSnack('Please select at least one member', Colors.orange);
       return;
     }
-
     if (_amountController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please enter amount'),
-          backgroundColor: Colors.orange,
-        ),
-      );
+      _showSnack('Please enter amount', Colors.orange);
       return;
     }
-
     final amount = double.tryParse(_amountController.text.trim());
     if (amount == null || amount <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please enter valid amount'),
-          backgroundColor: Colors.orange,
-        ),
-      );
+      _showSnack('Please enter valid amount', Colors.orange);
       return;
     }
-
-    // Check if normal member trying to add restricted category
     if (!_isManager &&
         _selectedCategory != 'Daily Bazar' &&
         _selectedCategory != 'Other') {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Only manager can add ${_selectedCategory}'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      _showSnack('Only manager can add $_selectedCategory', Colors.red);
       return;
     }
 
     try {
+      final userId = FirebaseAuth.instance.currentUser?.uid;
       final userData = await FirebaseAuthService.getUserData();
-      final userId = FirebaseAuthService.currentUser?.uid;
 
-      final expenseData = {
-        'messId': _messId,
-        'category': _selectedCategory,
-        'amount': amount,
-        'note': _noteController.text.trim(),
-        'memberIds': _selectedMembers,
-        'isDepositToBalance': _isDepositToBalance,
-        'status': _isManager ? 'approved' : 'pending',
-        'submittedBy': userId,
-        'submittedByName': userData?['name'] ?? 'Unknown',
-        'createdAt': Timestamp.now(),
-      };
+      final now = DateTime.now();
+      final monthKey = '${now.year}-${now.month.toString().padLeft(2, '0')}';
 
-      await FirebaseFirestore.instance.collection('expenses').add(expenseData);
-
-      // If deposit to balance and single member selected
-      if (_isDepositToBalance && _selectedMembers.length == 1 && _isManager) {
-        final memberId = _selectedMembers.first;
-        final memberDoc = await FirebaseFirestore.instance
-            .collection('members')
-            .doc(memberId)
-            .get();
-
-        if (memberDoc.exists) {
-          final currentBalance =
-              (memberDoc.data()?['balance'] ?? 0.0) as double;
-          await FirebaseFirestore.instance
-              .collection('members')
-              .doc(memberId)
-              .update({'balance': currentBalance + amount});
-        }
-      }
+      // Save to messes/{messId}/expenses subcollection with monthKey
+      await FirebaseFirestore.instance
+          .collection('messes')
+          .doc(_messId)
+          .collection('expenses')
+          .add({
+            'category': _selectedCategory,
+            'amount': amount,
+            'note': _noteController.text.trim(),
+            'memberIds': _selectedMembers,
+            'status': _isManager ? 'approved' : 'pending',
+            'submittedBy': userId,
+            'submittedByName': userData?['name'] ?? 'Unknown',
+            'monthKey': monthKey,
+            'createdAt': FieldValue.serverTimestamp(),
+          });
 
       if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            _isManager
-                ? 'Expense added successfully!'
-                : 'Expense submitted for approval!',
-          ),
-          backgroundColor: Colors.green,
-        ),
+      _showSnack(
+        _isManager
+            ? 'Expense added successfully!'
+            : 'Expense submitted for approval!',
+        Colors.green,
       );
 
-      // Clear form
       setState(() {
         _selectedMembers.clear();
         _amountController.clear();
         _noteController.clear();
-        _isDepositToBalance = false;
         _selectedCategory = 'Daily Bazar';
       });
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error: ${e.toString()}'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      _showSnack('Error: $e', Colors.red);
     }
+  }
+
+  void _showSnack(String msg, Color color) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(msg), backgroundColor: color));
   }
 }

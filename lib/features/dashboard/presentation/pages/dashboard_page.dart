@@ -90,41 +90,53 @@ class _DashboardPageState extends State<DashboardPage> {
       final now = DateTime.now();
       final monthKey = '${now.year}-${now.month.toString().padLeft(2, '0')}';
 
-      // My balance from user doc
-      final myBal = (userDoc.data()?['balance'] as num?)?.toDouble() ?? 0;
+      // My balance from messes/{messId}/members/{uid}
+      final memberDoc = await FirebaseFirestore.instance
+          .collection('messes')
+          .doc(messId)
+          .collection('members')
+          .doc(user.uid)
+          .get();
+      final myBal = (memberDoc.data()?['balance'] as num?)?.toDouble() ?? 0;
 
-      // Mess balance
-      final messBal = (messData['balance'] as num?)?.toDouble() ?? 0;
+      // Mess balance = sum of all members' balances
+      double messBal = 0;
+      final allMembersSnap = await FirebaseFirestore.instance
+          .collection('messes')
+          .doc(messId)
+          .collection('members')
+          .get();
+      for (final m in allMembersSnap.docs) {
+        messBal += (m.data()['balance'] as num?)?.toDouble() ?? 0;
+      }
 
-      // Monthly stats from subcollection
-      double myDep = 0, myExp = 0, messDep = 0, messExp = 0;
+      double myDep = 0, messDep = 0;
+      double myExp = 0, messExp = 0;
       int myMeals = 0, messMeals = 0;
       double mealRate = 0;
 
-      // My deposits this month
-      final myDepSnap = await FirebaseFirestore.instance
+      // Deposits: from messes/{messId}/transactions where type=='deposit'
+      // Filter by month from createdAt in-memory (avoid composite index)
+      final txSnap = await FirebaseFirestore.instance
           .collection('messes')
           .doc(messId)
-          .collection('deposits')
-          .where('userId', isEqualTo: user.uid)
-          .where('monthKey', isEqualTo: monthKey)
+          .collection('transactions')
+          .where('type', isEqualTo: 'deposit')
           .get();
-      for (final d in myDepSnap.docs) {
-        myDep += (d.data()['amount'] as num?)?.toDouble() ?? 0;
+      for (final d in txSnap.docs) {
+        final data = d.data();
+        final createdAt = data['createdAt'];
+        if (createdAt != null) {
+          final dt = (createdAt as Timestamp).toDate();
+          final docMonth = '${dt.year}-${dt.month.toString().padLeft(2, '0')}';
+          if (docMonth != monthKey) continue;
+        }
+        final amt = (data['amount'] as num?)?.toDouble() ?? 0;
+        messDep += amt;
+        if (data['memberId'] == user.uid) myDep += amt;
       }
 
-      // All deposits this month (mess total)
-      final allDepSnap = await FirebaseFirestore.instance
-          .collection('messes')
-          .doc(messId)
-          .collection('deposits')
-          .where('monthKey', isEqualTo: monthKey)
-          .get();
-      for (final d in allDepSnap.docs) {
-        messDep += (d.data()['amount'] as num?)?.toDouble() ?? 0;
-      }
-
-      // All expenses this month
+      // Expenses: from messes/{messId}/expenses with monthKey
       final expSnap = await FirebaseFirestore.instance
           .collection('messes')
           .doc(messId)
@@ -134,30 +146,20 @@ class _DashboardPageState extends State<DashboardPage> {
       for (final d in expSnap.docs) {
         final amt = (d.data()['amount'] as num?)?.toDouble() ?? 0;
         messExp += amt;
-        if (d.data()['userId'] == user.uid) myExp += amt;
+        if (d.data()['submittedBy'] == user.uid) myExp += amt;
       }
 
-      // My meals this month
-      final myMealSnap = await FirebaseFirestore.instance
-          .collection('messes')
-          .doc(messId)
-          .collection('meals')
-          .where('userId', isEqualTo: user.uid)
-          .where('monthKey', isEqualTo: monthKey)
-          .get();
-      for (final d in myMealSnap.docs) {
-        myMeals += ((d.data()['count'] as num?)?.toInt() ?? 1);
-      }
-
-      // Total mess meals this month
-      final allMealSnap = await FirebaseFirestore.instance
+      // Meals: from messes/{messId}/meals with monthKey
+      final mealSnap = await FirebaseFirestore.instance
           .collection('messes')
           .doc(messId)
           .collection('meals')
           .where('monthKey', isEqualTo: monthKey)
           .get();
-      for (final d in allMealSnap.docs) {
-        messMeals += ((d.data()['count'] as num?)?.toInt() ?? 1);
+      for (final d in mealSnap.docs) {
+        final count = (d.data()['count'] as num?)?.toDouble() ?? 1.0;
+        messMeals += count.toInt();
+        if (d.data()['memberId'] == user.uid) myMeals += count.toInt();
       }
 
       // Meal rate = total expense / total meals
