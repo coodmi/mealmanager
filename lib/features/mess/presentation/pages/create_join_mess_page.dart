@@ -187,9 +187,13 @@ class _CreateJoinMessPageState extends State<CreateJoinMessPage> {
               const SizedBox(height: 16),
               TextFormField(
                 controller: _messIdController,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText: 'Enter Mess ID',
-                  hintText: 'MM1000',
+                  hintText: 'MM00000',
+                  hintStyle: TextStyle(
+                    color: Colors.grey[400],
+                    letterSpacing: 1,
+                  ),
                 ),
                 validator: (value) =>
                     value?.isEmpty ?? true ? 'Required' : null,

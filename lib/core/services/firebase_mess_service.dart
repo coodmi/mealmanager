@@ -5,11 +5,11 @@ import 'firebase_auth_service.dart';
 class FirebaseMessService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  // Generate Mess ID (MM1000+)
+  // Generate Mess ID (MM00000 format, zero-padded 5 digits)
   static String generateMessId() {
     final random = Random();
-    final number = 1000 + random.nextInt(99000);
-    return 'MM$number';
+    final number = random.nextInt(100000); // 0–99999
+    return 'MM${number.toString().padLeft(5, '0')}';
   }
 
   // Create new mess
