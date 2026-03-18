@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_auth_platform_interface/firebase_auth_platform_interface.dart';
 import 'firebase_auth_service.dart';
 
 class AuthService {
@@ -9,6 +11,9 @@ class AuthService {
   static const String _emailKey = 'user_email';
   static const String _passwordKey = 'user_password';
   static const String _verificationIdKey = 'verification_id';
+
+  // Web: holds the ConfirmationResult from signInWithPhoneNumber
+  static ConfirmationResult? _webConfirmationResult;
 
   // Step 1: Send real SMS OTP via Firebase Phone Auth
   static Future<Map<String, dynamic>> registerUser({
@@ -32,64 +37,95 @@ class AuthService {
       phone = '+88$phone';
     }
 
-    final completer = Completer<Map<String, dynamic>>();
+    try {
+      if (kIsWeb) {
+        // Web: use signInWithPhoneNumber with invisible reCAPTCHA
+        final recaptchaVerifier = RecaptchaVerifier(
+          auth: FirebaseAuthPlatform.instance,
+          size: RecaptchaVerifierSize.normal,
+          theme: RecaptchaVerifierTheme.light,
+        );
+        _webConfirmationResult = await FirebaseAuth.instance
+            .signInWithPhoneNumber(phone, recaptchaVerifier);
+        return {'success': true, 'autoVerified': false};
+      } else {
+        // Mobile: use verifyPhoneNumber callback flow
+        final completer = Completer<Map<String, dynamic>>();
 
-    await FirebaseAuth.instance.verifyPhoneNumber(
-      phoneNumber: phone,
-      timeout: const Duration(seconds: 60),
-      verificationCompleted: (PhoneAuthCredential credential) {
-        // Auto-verified on Android — mark success
-        if (!completer.isCompleted) {
-          completer.complete({'success': true, 'autoVerified': true});
-        }
-      },
-      verificationFailed: (FirebaseAuthException e) {
-        if (!completer.isCompleted) {
-          completer.complete({
-            'success': false,
-            'message': e.message ?? 'Failed to send OTP',
-          });
-        }
-      },
-      codeSent: (String verificationId, int? resendToken) async {
-        final p = await SharedPreferences.getInstance();
-        await p.setString(_verificationIdKey, verificationId);
-        if (!completer.isCompleted) {
-          completer.complete({'success': true, 'autoVerified': false});
-        }
-      },
-      codeAutoRetrievalTimeout: (_) {},
-    );
+        await FirebaseAuth.instance.verifyPhoneNumber(
+          phoneNumber: phone,
+          timeout: const Duration(seconds: 60),
+          verificationCompleted: (PhoneAuthCredential credential) {
+            if (!completer.isCompleted) {
+              completer.complete({'success': true, 'autoVerified': true});
+            }
+          },
+          verificationFailed: (FirebaseAuthException e) {
+            if (!completer.isCompleted) {
+              completer.complete({
+                'success': false,
+                'message': e.message ?? 'Failed to send OTP',
+              });
+            }
+          },
+          codeSent: (String verificationId, int? resendToken) async {
+            final p = await SharedPreferences.getInstance();
+            await p.setString(_verificationIdKey, verificationId);
+            if (!completer.isCompleted) {
+              completer.complete({'success': true, 'autoVerified': false});
+            }
+          },
+          codeAutoRetrievalTimeout: (_) {},
+        );
 
-    return completer.future;
+        return completer.future;
+      }
+    } on FirebaseAuthException catch (e) {
+      return {'success': false, 'message': e.message ?? 'Failed to send OTP'};
+    } catch (e) {
+      return {'success': false, 'message': 'Failed to send OTP: $e'};
+    }
   }
 
   // Step 2: Verify SMS OTP → create Firebase email/password account
   static Future<Map<String, dynamic>> verifyOTP(String smsCode) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final verificationId = prefs.getString(_verificationIdKey);
-      if (verificationId == null) {
-        return {
-          'success': false,
-          'message': 'Session expired. Please register again.',
-        };
+      UserCredential? phoneResult;
+
+      if (kIsWeb) {
+        // Web: confirm using the stored ConfirmationResult
+        if (_webConfirmationResult == null) {
+          return {
+            'success': false,
+            'message': 'Session expired. Please register again.',
+          };
+        }
+        phoneResult = await _webConfirmationResult!.confirm(smsCode);
+      } else {
+        // Mobile: use verificationId from SharedPreferences
+        final prefs = await SharedPreferences.getInstance();
+        final verificationId = prefs.getString(_verificationIdKey);
+        if (verificationId == null) {
+          return {
+            'success': false,
+            'message': 'Session expired. Please register again.',
+          };
+        }
+        final credential = PhoneAuthProvider.credential(
+          verificationId: verificationId,
+          smsCode: smsCode,
+        );
+        phoneResult = await FirebaseAuth.instance.signInWithCredential(
+          credential,
+        );
       }
 
-      final credential = PhoneAuthProvider.credential(
-        verificationId: verificationId,
-        smsCode: smsCode,
-      );
-
-      // Verify phone credential with Firebase
-      final phoneResult = await FirebaseAuth.instance.signInWithCredential(
-        credential,
-      );
       if (phoneResult.user == null) {
         return {'success': false, 'message': 'Invalid OTP'};
       }
 
       // Phone verified — now create the email/password account
+      final prefs = await SharedPreferences.getInstance();
       final name = prefs.getString(_nameKey) ?? '';
       final mobile = prefs.getString(_mobileKey) ?? '';
       final email = prefs.getString(_emailKey) ?? '';
@@ -97,6 +133,7 @@ class AuthService {
 
       // Sign out the temporary phone session
       await FirebaseAuth.instance.signOut();
+      _webConfirmationResult = null;
 
       final result = await FirebaseAuthService.registerUser(
         name: name,
@@ -159,7 +196,7 @@ class AuthService {
     return prefs.getString(_mobileKey);
   }
 
-  // Get stored email (kept for compatibility)
+  // Get stored email
   static Future<String?> getStoredEmail() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString(_emailKey);
@@ -167,6 +204,7 @@ class AuthService {
 
   // Clear all auth data
   static Future<void> clearAuthData() async {
+    _webConfirmationResult = null;
     final prefs = await SharedPreferences.getInstance();
     for (final key in [
       _verificationIdKey,
