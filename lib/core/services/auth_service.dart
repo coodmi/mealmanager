@@ -1,55 +1,138 @@
+import 'dart:async';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'email_service.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'firebase_auth_service.dart';
 
 class AuthService {
-  static const String _otpKey = 'stored_otp';
-  static const String _emailKey = 'user_email';
   static const String _nameKey = 'user_name';
   static const String _mobileKey = 'user_mobile';
+  static const String _emailKey = 'user_email';
   static const String _passwordKey = 'user_password';
+  static const String _verificationIdKey = 'verification_id';
 
-  // Register user and send OTP
+  // Step 1: Send real SMS OTP via Firebase Phone Auth
   static Future<Map<String, dynamic>> registerUser({
     required String name,
     required String mobile,
     required String email,
     required String password,
   }) async {
-    try {
-      // Generate OTP
-      final otp = EmailService.generateOTP();
+    // Store user data temporarily for after OTP verification
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_nameKey, name);
+    await prefs.setString(_mobileKey, mobile);
+    await prefs.setString(_emailKey, email);
+    await prefs.setString(_passwordKey, password);
 
-      // Send OTP via email (will auto-switch to demo if not configured)
-      final result = await EmailService.sendOTPEmail(
-        email: email,
-        otp: otp,
-        name: name,
+    // Convert BD mobile to E.164 format: 017xxx → +88017xxx
+    String phone = mobile.trim();
+    if (phone.startsWith('0')) {
+      phone = '+88$phone';
+    } else if (!phone.startsWith('+')) {
+      phone = '+88$phone';
+    }
+
+    final completer = Completer<Map<String, dynamic>>();
+
+    await FirebaseAuth.instance.verifyPhoneNumber(
+      phoneNumber: phone,
+      timeout: const Duration(seconds: 60),
+      verificationCompleted: (PhoneAuthCredential credential) {
+        // Auto-verified on Android — mark success
+        if (!completer.isCompleted) {
+          completer.complete({'success': true, 'autoVerified': true});
+        }
+      },
+      verificationFailed: (FirebaseAuthException e) {
+        if (!completer.isCompleted) {
+          completer.complete({
+            'success': false,
+            'message': e.message ?? 'Failed to send OTP',
+          });
+        }
+      },
+      codeSent: (String verificationId, int? resendToken) async {
+        final p = await SharedPreferences.getInstance();
+        await p.setString(_verificationIdKey, verificationId);
+        if (!completer.isCompleted) {
+          completer.complete({'success': true, 'autoVerified': false});
+        }
+      },
+      codeAutoRetrievalTimeout: (_) {},
+    );
+
+    return completer.future;
+  }
+
+  // Step 2: Verify SMS OTP → create Firebase email/password account
+  static Future<Map<String, dynamic>> verifyOTP(String smsCode) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final verificationId = prefs.getString(_verificationIdKey);
+      if (verificationId == null) {
+        return {
+          'success': false,
+          'message': 'Session expired. Please register again.',
+        };
+      }
+
+      final credential = PhoneAuthProvider.credential(
+        verificationId: verificationId,
+        smsCode: smsCode,
       );
 
-      if (result['success']) {
-        // Store OTP and user data temporarily
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString(_otpKey, otp);
-        await prefs.setString(_emailKey, email);
-        await prefs.setString(_nameKey, name);
-        await prefs.setString(_mobileKey, mobile);
-        await prefs.setString(_passwordKey, password);
-
-        return {
-          'success': true,
-          'message': 'OTP sent to $email',
-          'otp': otp, // For testing - remove in production
-        };
-      } else {
-        return result;
+      // Verify phone credential with Firebase
+      final phoneResult = await FirebaseAuth.instance.signInWithCredential(
+        credential,
+      );
+      if (phoneResult.user == null) {
+        return {'success': false, 'message': 'Invalid OTP'};
       }
+
+      // Phone verified — now create the email/password account
+      final name = prefs.getString(_nameKey) ?? '';
+      final mobile = prefs.getString(_mobileKey) ?? '';
+      final email = prefs.getString(_emailKey) ?? '';
+      final password = prefs.getString(_passwordKey) ?? '';
+
+      // Sign out the temporary phone session
+      await FirebaseAuth.instance.signOut();
+
+      final result = await FirebaseAuthService.registerUser(
+        name: name,
+        mobile: mobile,
+        email: email,
+        password: password,
+      );
+
+      if (result['success'] == true) {
+        await prefs.remove(_verificationIdKey);
+        await prefs.remove(_passwordKey);
+      }
+
+      return result;
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'invalid-verification-code') {
+        return {'success': false, 'message': 'Invalid OTP. Please try again.'};
+      }
+      return {'success': false, 'message': e.message ?? 'Verification failed'};
     } catch (e) {
-      return {'success': false, 'message': 'Registration failed: $e'};
+      return {'success': false, 'message': 'Verification failed: $e'};
     }
   }
 
-  // Login user (delegates to Firebase)
+  // Resend OTP
+  static Future<Map<String, dynamic>> resendOTP() async {
+    final prefs = await SharedPreferences.getInstance();
+    return registerUser(
+      name: prefs.getString(_nameKey) ?? '',
+      mobile: prefs.getString(_mobileKey) ?? '',
+      email: prefs.getString(_emailKey) ?? '',
+      password: prefs.getString(_passwordKey) ?? '',
+    );
+  }
+
+  // Login user
   static Future<Map<String, dynamic>> loginUser({
     required String email,
     required String password,
@@ -65,35 +148,18 @@ class AuthService {
     return await FirebaseAuthService.signInWithGoogle();
   }
 
-  // Get user data (delegates to Firebase)
+  // Get user data
   static Future<Map<String, dynamic>?> getUserData() async {
     return await FirebaseAuthService.getUserData();
   }
 
-  // Verify OTP
-  static Future<Map<String, dynamic>> verifyOTP(String enteredOTP) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final storedOTP = prefs.getString(_otpKey);
-
-      if (storedOTP == null) {
-        return {'success': false, 'message': 'OTP expired or not found'};
-      }
-
-      if (EmailService.verifyOTP(enteredOTP, storedOTP)) {
-        // Clear OTP after successful verification
-        await prefs.remove(_otpKey);
-
-        return {'success': true, 'message': 'OTP verified successfully'};
-      } else {
-        return {'success': false, 'message': 'Invalid OTP'};
-      }
-    } catch (e) {
-      return {'success': false, 'message': 'Verification failed: $e'};
-    }
+  // Get stored mobile
+  static Future<String?> getStoredMobile() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_mobileKey);
   }
 
-  // Get stored email
+  // Get stored email (kept for compatibility)
   static Future<String?> getStoredEmail() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString(_emailKey);
@@ -102,8 +168,14 @@ class AuthService {
   // Clear all auth data
   static Future<void> clearAuthData() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_otpKey);
-    await prefs.remove(_emailKey);
-    await prefs.remove(_nameKey);
+    for (final key in [
+      _verificationIdKey,
+      _nameKey,
+      _mobileKey,
+      _emailKey,
+      _passwordKey,
+    ]) {
+      await prefs.remove(key);
+    }
   }
 }

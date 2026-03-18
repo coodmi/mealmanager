@@ -64,81 +64,9 @@ class _LoginPageState extends State<LoginPage>
       if (!mounted) return;
 
       if (result['success']) {
-        // Show OTP in dialog for easy testing
-        showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (context) => AlertDialog(
-            title: Row(
-              children: [
-                const Icon(Icons.check_circle, color: Colors.green),
-                const SizedBox(width: 8),
-                const Text('OTP Sent!'),
-              ],
-            ),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('OTP sent to ${_registerEmailController.text}'),
-                const SizedBox(height: 16),
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: AppColors.primaryGreen.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: AppColors.primaryGreen),
-                  ),
-                  child: Column(
-                    children: [
-                      Text(
-                        'Your OTP Code:',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: AppColors.textLight,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        result['otp'] ?? 'Check console',
-                        style: const TextStyle(
-                          fontSize: 32,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.primaryGreen,
-                          letterSpacing: 8,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'Demo Mode: OTP shown here for testing',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: AppColors.textLight,
-                    fontStyle: FontStyle.italic,
-                  ),
-                ),
-              ],
-            ),
-            actions: [
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primaryGreen,
-                ),
-                onPressed: () {
-                  Navigator.pop(context);
-                  context.go(AppRouter.otpVerification);
-                },
-                child: const Text(
-                  'Continue to Verification',
-                  style: TextStyle(color: Colors.white),
-                ),
-              ),
-            ],
-          ),
-        );
+        if (!mounted) return;
+        // SMS OTP sent — navigate to verification page
+        context.go(AppRouter.otpVerification);
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
