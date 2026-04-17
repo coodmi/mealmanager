@@ -24,6 +24,38 @@ class AppTheme {
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
     ),
+    outlinedButtonTheme: OutlinedButtonThemeData(
+      style:
+          OutlinedButton.styleFrom(
+            elevation: 0,
+            shadowColor: Colors.transparent,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ).copyWith(
+            overlayColor: WidgetStateProperty.resolveWith<Color?>((states) {
+              if (states.contains(WidgetState.hovered)) {
+                return AppColors.primaryGreen.withValues(alpha: 0.08);
+              }
+              return null;
+            }),
+          ),
+    ),
+    textButtonTheme: TextButtonThemeData(
+      style:
+          TextButton.styleFrom(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+          ).copyWith(
+            overlayColor: WidgetStateProperty.resolveWith<Color?>((states) {
+              if (states.contains(WidgetState.hovered)) {
+                return AppColors.primaryGreen.withValues(alpha: 0.08);
+              }
+              return null;
+            }),
+          ),
+    ),
     elevatedButtonTheme: ElevatedButtonThemeData(
       style:
           ElevatedButton.styleFrom(
@@ -132,6 +164,38 @@ class AppTheme {
       color: AppColors.cardWhite,
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+    ),
+    outlinedButtonTheme: OutlinedButtonThemeData(
+      style:
+          OutlinedButton.styleFrom(
+            elevation: 0,
+            shadowColor: Colors.transparent,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ).copyWith(
+            overlayColor: WidgetStateProperty.resolveWith<Color?>((states) {
+              if (states.contains(WidgetState.hovered)) {
+                return AppColors.primaryGreen.withValues(alpha: 0.06);
+              }
+              return null;
+            }),
+          ),
+    ),
+    textButtonTheme: TextButtonThemeData(
+      style:
+          TextButton.styleFrom(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+          ).copyWith(
+            overlayColor: WidgetStateProperty.resolveWith<Color?>((states) {
+              if (states.contains(WidgetState.hovered)) {
+                return AppColors.primaryGreen.withValues(alpha: 0.06);
+              }
+              return null;
+            }),
+          ),
     ),
   );
 }
