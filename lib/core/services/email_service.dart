@@ -4,9 +4,9 @@ import 'package:http/http.dart' as http;
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class EmailService {
-  static const String _serviceId = 'service_54jp6ru';
-  static const String _templateId = 'template_w3o8w33';
-  static const String _publicKey = 'yxfv0dFu6Lq67B37E';
+  static const String _serviceId = 'service_p7uefca';
+  static const String _templateId = 'template_vu87xr6';
+  static const String _publicKey = '_RbqM-xvVUUpecU7R';
 
   // Generate 6-digit OTP
   static String generateOTP() {
