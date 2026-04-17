@@ -5,6 +5,9 @@ import '../constants/app_colors.dart';
 class AppTheme {
   static ThemeData darkTheme = ThemeData(
     useMaterial3: true,
+    splashFactory: NoSplash.splashFactory,
+    highlightColor: Colors.transparent,
+    hoverColor: Colors.transparent,
     brightness: Brightness.dark,
     colorScheme: ColorScheme.fromSeed(
       seedColor: AppColors.primaryGreen,
@@ -103,6 +106,9 @@ class AppTheme {
 
   static ThemeData lightTheme = ThemeData(
     useMaterial3: true,
+    splashFactory: NoSplash.splashFactory,
+    highlightColor: Colors.transparent,
+    hoverColor: Colors.transparent,
     colorScheme: ColorScheme.fromSeed(
       seedColor: AppColors.primaryGreen,
       primary: AppColors.primaryGreen,
