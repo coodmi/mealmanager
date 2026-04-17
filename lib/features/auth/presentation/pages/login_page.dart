@@ -686,67 +686,96 @@ class _LoginPageState extends State<LoginPage>
     );
   }
 
-  Widget _inputBox(Widget child) => Container(
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(12),
-      border: Border.all(color: AppColors.primaryGreen.withValues(alpha: 0.2)),
-    ),
-    child: child,
-  );
+  Widget _inputBox(Widget child) => child;
+
+  Widget _field({
+    required TextEditingController controller,
+    required String label,
+    TextInputType? keyboardType,
+    bool obscureText = false,
+    Widget? suffixIcon,
+    String? Function(String?)? validator,
+    void Function(String)? onChanged,
+  }) {
+    return TextFormField(
+      controller: controller,
+      keyboardType: keyboardType,
+      obscureText: obscureText,
+      onChanged: onChanged,
+      validator: validator,
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: TextStyle(
+          color: AppColors.textLight.withValues(alpha: 0.8),
+        ),
+        floatingLabelStyle: const TextStyle(
+          color: AppColors.primaryGreen,
+          fontWeight: FontWeight.w500,
+        ),
+        filled: true,
+        fillColor: Colors.white,
+        suffixIcon: suffixIcon,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(
+            color: AppColors.primaryGreen.withValues(alpha: 0.3),
+          ),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(
+            color: AppColors.primaryGreen.withValues(alpha: 0.25),
+          ),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(
+            color: AppColors.primaryGreen,
+            width: 1.5,
+          ),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Colors.red),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Colors.red, width: 1.5),
+        ),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 14,
+        ),
+      ),
+    );
+  }
 
   Widget _buildLoginForm() {
     return Form(
       key: _loginFormKey,
       child: Column(
         children: [
-          _inputBox(
-            TextFormField(
-              controller: _loginEmailController,
-              decoration: InputDecoration(
-                hintText: 'Mobile/Email',
-                hintStyle: TextStyle(
-                  color: AppColors.textLight.withValues(alpha: 0.6),
-                ),
-                border: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 16,
-                ),
-              ),
-              validator: (v) => v?.isEmpty ?? true ? 'Required' : null,
-            ),
+          _field(
+            controller: _loginEmailController,
+            label: 'Mobile / Email',
+            validator: (v) => v?.isEmpty ?? true ? 'Required' : null,
           ),
           const SizedBox(height: 16),
-          _inputBox(
-            TextFormField(
-              controller: _loginPasswordController,
-              obscureText: !_loginPasswordVisible,
-              decoration: InputDecoration(
-                hintText: 'Password',
-                hintStyle: TextStyle(
-                  color: AppColors.textLight.withValues(alpha: 0.6),
-                ),
-                border: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 16,
-                ),
-                suffixIcon: IconButton(
-                  icon: Icon(
-                    _loginPasswordVisible
-                        ? Icons.visibility
-                        : Icons.visibility_off,
-                    color: AppColors.textLight,
-                    size: 20,
-                  ),
-                  onPressed: () => setState(
-                    () => _loginPasswordVisible = !_loginPasswordVisible,
-                  ),
-                ),
+          _field(
+            controller: _loginPasswordController,
+            label: 'Password',
+            obscureText: !_loginPasswordVisible,
+            suffixIcon: IconButton(
+              icon: Icon(
+                _loginPasswordVisible ? Icons.visibility : Icons.visibility_off,
+                color: AppColors.textLight,
+                size: 20,
               ),
-              validator: (v) => v?.isEmpty ?? true ? 'Required' : null,
+              onPressed: () => setState(
+                () => _loginPasswordVisible = !_loginPasswordVisible,
+              ),
             ),
+            validator: (v) => v?.isEmpty ?? true ? 'Required' : null,
           ),
           const SizedBox(height: 8),
           Align(
@@ -971,10 +1000,13 @@ class _LoginPageState extends State<LoginPage>
     height: 56,
     child: OutlinedButton.icon(
       onPressed: _isLoading ? null : _handleGoogleLogin,
-      icon: SizedBox(
-        width: 22,
-        height: 22,
-        child: CustomPaint(painter: _GoogleLogoPainter()),
+      icon: const Text(
+        'G',
+        style: TextStyle(
+          fontSize: 20,
+          fontWeight: FontWeight.bold,
+          color: Color(0xFF4285F4),
+        ),
       ),
       label: Text(
         label,
@@ -988,80 +1020,6 @@ class _LoginPageState extends State<LoginPage>
       ),
     ),
   );
-}
-
-// Official Google "G" logo painter
-class _GoogleLogoPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final double w = size.width;
-    final double h = size.height;
-    final double cx = w / 2;
-    final double cy = h / 2;
-    final double r = w / 2;
-
-    // Draw colored arc segments
-    final paint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = w * 0.18;
-
-    // Blue segment (right)
-    paint.color = const Color(0xFF4285F4);
-    canvas.drawArc(
-      Rect.fromCircle(center: Offset(cx, cy), radius: r * 0.82),
-      -0.3,
-      1.9,
-      false,
-      paint,
-    );
-
-    // Red segment (top-left)
-    paint.color = const Color(0xFFEA4335);
-    canvas.drawArc(
-      Rect.fromCircle(center: Offset(cx, cy), radius: r * 0.82),
-      -1.9,
-      1.3,
-      false,
-      paint,
-    );
-
-    // Yellow segment (bottom-left)
-    paint.color = const Color(0xFFFBBC05);
-    canvas.drawArc(
-      Rect.fromCircle(center: Offset(cx, cy), radius: r * 0.82),
-      2.4,
-      0.9,
-      false,
-      paint,
-    );
-
-    // Green segment (bottom)
-    paint.color = const Color(0xFF34A853);
-    canvas.drawArc(
-      Rect.fromCircle(center: Offset(cx, cy), radius: r * 0.82),
-      3.3,
-      0.7,
-      false,
-      paint,
-    );
-
-    // White horizontal bar for the "G" cutout
-    final barPaint = Paint()
-      ..color = Colors.white
-      ..style = PaintingStyle.fill;
-    canvas.drawRect(
-      Rect.fromLTWH(
-        cx,
-        cy - h * 0.09,
-        r * 0.82 + paint.strokeWidth / 2,
-        h * 0.18,
-      ),
-      barPaint,
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 // ── Password Strength Bar ─────────────────────────────────────────────────────
