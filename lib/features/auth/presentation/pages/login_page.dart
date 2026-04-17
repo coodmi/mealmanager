@@ -971,18 +971,10 @@ class _LoginPageState extends State<LoginPage>
     height: 56,
     child: OutlinedButton.icon(
       onPressed: _isLoading ? null : _handleGoogleLogin,
-      icon: Image.network(
-        'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Google_%22G%22_logo.svg/768px-Google_%22G%22_logo.svg.png',
+      icon: SizedBox(
         width: 22,
         height: 22,
-        errorBuilder: (_, __, ___) => const Text(
-          'G',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: Color(0xFF4285F4),
-          ),
-        ),
+        child: CustomPaint(painter: _GoogleLogoPainter()),
       ),
       label: Text(
         label,
@@ -996,6 +988,80 @@ class _LoginPageState extends State<LoginPage>
       ),
     ),
   );
+}
+
+// Official Google "G" logo painter
+class _GoogleLogoPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final double w = size.width;
+    final double h = size.height;
+    final double cx = w / 2;
+    final double cy = h / 2;
+    final double r = w / 2;
+
+    // Draw colored arc segments
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = w * 0.18;
+
+    // Blue segment (right)
+    paint.color = const Color(0xFF4285F4);
+    canvas.drawArc(
+      Rect.fromCircle(center: Offset(cx, cy), radius: r * 0.82),
+      -0.3,
+      1.9,
+      false,
+      paint,
+    );
+
+    // Red segment (top-left)
+    paint.color = const Color(0xFFEA4335);
+    canvas.drawArc(
+      Rect.fromCircle(center: Offset(cx, cy), radius: r * 0.82),
+      -1.9,
+      1.3,
+      false,
+      paint,
+    );
+
+    // Yellow segment (bottom-left)
+    paint.color = const Color(0xFFFBBC05);
+    canvas.drawArc(
+      Rect.fromCircle(center: Offset(cx, cy), radius: r * 0.82),
+      2.4,
+      0.9,
+      false,
+      paint,
+    );
+
+    // Green segment (bottom)
+    paint.color = const Color(0xFF34A853);
+    canvas.drawArc(
+      Rect.fromCircle(center: Offset(cx, cy), radius: r * 0.82),
+      3.3,
+      0.7,
+      false,
+      paint,
+    );
+
+    // White horizontal bar for the "G" cutout
+    final barPaint = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.fill;
+    canvas.drawRect(
+      Rect.fromLTWH(
+        cx,
+        cy - h * 0.09,
+        r * 0.82 + paint.strokeWidth / 2,
+        h * 0.18,
+      ),
+      barPaint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 // ── Password Strength Bar ─────────────────────────────────────────────────────
