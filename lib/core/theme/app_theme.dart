@@ -8,6 +8,7 @@ class AppTheme {
     splashFactory: NoSplash.splashFactory,
     highlightColor: Colors.transparent,
     hoverColor: Colors.transparent,
+    focusColor: Colors.transparent,
     brightness: Brightness.dark,
     colorScheme: ColorScheme.fromSeed(
       seedColor: AppColors.primaryGreen,
@@ -109,6 +110,7 @@ class AppTheme {
     splashFactory: NoSplash.splashFactory,
     highlightColor: Colors.transparent,
     hoverColor: Colors.transparent,
+    focusColor: Colors.transparent,
     colorScheme: ColorScheme.fromSeed(
       seedColor: AppColors.primaryGreen,
       primary: AppColors.primaryGreen,
