@@ -17,6 +17,8 @@ import 'about_app_page.dart';
 import 'donation_page.dart';
 import 'mess_settings_page.dart';
 import 'mess_requests_page.dart';
+import 'terms_page.dart';
+import 'privacy_page.dart';
 
 class MenuPage extends StatefulWidget {
   const MenuPage({super.key});
@@ -174,6 +176,20 @@ class _MenuPageState extends State<MenuPage> {
               Icons.info_outline,
               Colors.grey,
               () => _go(context, const AboutAppPage()),
+            ),
+            _item(
+              context,
+              'Terms & Conditions',
+              Icons.gavel,
+              Colors.indigo,
+              () => _go(context, const TermsPage()),
+            ),
+            _item(
+              context,
+              'Privacy Policy',
+              Icons.privacy_tip_outlined,
+              Colors.teal,
+              () => _go(context, const PrivacyPage()),
             ),
           ]),
           const SizedBox(height: 14),

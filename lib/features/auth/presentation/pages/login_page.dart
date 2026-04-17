@@ -9,6 +9,8 @@ import '../../../../core/router/app_router.dart';
 import '../../../../core/services/auth_service.dart';
 import '../../../../core/services/email_service.dart';
 import '../../../../core/services/firebase_auth_service.dart';
+import '../../../menu/presentation/pages/terms_page.dart';
+import '../../../menu/presentation/pages/privacy_page.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -931,7 +933,12 @@ class _LoginPageState extends State<LoginPage>
                             const TextSpan(text: 'I agree to '),
                             WidgetSpan(
                               child: GestureDetector(
-                                onTap: () {},
+                                onTap: () => Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => const TermsPage(),
+                                  ),
+                                ),
                                 child: const Text(
                                   'Terms & Conditions',
                                   style: TextStyle(
@@ -946,7 +953,12 @@ class _LoginPageState extends State<LoginPage>
                             const TextSpan(text: ' and '),
                             WidgetSpan(
                               child: GestureDetector(
-                                onTap: () {},
+                                onTap: () => Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => const PrivacyPage(),
+                                  ),
+                                ),
                                 child: const Text(
                                   'Privacy Policy',
                                   style: TextStyle(
