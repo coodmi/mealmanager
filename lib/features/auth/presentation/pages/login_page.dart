@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -6,11 +7,11 @@ import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_strings.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../../core/services/auth_service.dart';
+import '../../../../core/services/email_service.dart';
 import '../../../../core/services/firebase_auth_service.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
-
   @override
   State<LoginPage> createState() => _LoginPageState();
 }
@@ -51,158 +52,470 @@ class _LoginPageState extends State<LoginPage>
     super.dispose();
   }
 
+  // ── REGISTER: Send OTP first ──────────────────────────────────────────────
   Future<void> _handleRegister() async {
     if (!_registerFormKey.currentState!.validate()) return;
-
     setState(() => _isLoading = true);
-
-    try {
-      final result = await FirebaseAuthService.registerUser(
-        name: _registerNameController.text.trim(),
+    final email = _registerEmailController.text.trim();
+    final name = _registerNameController.text.trim();
+    final result = await EmailService.sendOTPEmail(email: email, name: name);
+    setState(() => _isLoading = false);
+    if (!mounted) return;
+    if (result['success'] == true) {
+      _showOtpDialog(
+        email: email,
+        name: name,
         mobile: _registerMobileController.text.trim(),
-        email: _registerEmailController.text.trim(),
         password: _registerPasswordController.text,
       );
-
-      setState(() => _isLoading = false);
-      if (!mounted) return;
-
-      if (result['success'] == true) {
-        // Show email verification dialog
-        _showEmailVerificationDialog(_registerEmailController.text.trim());
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(result['message'] ?? 'Registration failed'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    } catch (e) {
-      setState(() => _isLoading = false);
-      if (!mounted) return;
+    } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(e.toString().replaceAll('Exception: ', '')),
+          content: Text(result['message'] ?? 'Failed to send OTP'),
           backgroundColor: Colors.red,
         ),
       );
     }
   }
 
-  void _showEmailVerificationDialog(String email) {
-    bool isChecking = false;
+  // ── OTP DIALOG ────────────────────────────────────────────────────────────
+  void _showOtpDialog({
+    required String email,
+    required String name,
+    required String mobile,
+    required String password,
+  }) {
+    final controllers = List.generate(6, (_) => TextEditingController());
+    final focusNodes = List.generate(6, (_) => FocusNode());
+    bool isVerifying = false;
     bool isResending = false;
+    String? errorMsg;
 
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setS) => AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-          contentPadding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
-          actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 72,
-                height: 72,
-                decoration: BoxDecoration(
-                  color: AppColors.primaryGreen.withValues(alpha: 0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.mark_email_unread_rounded,
-                  color: AppColors.primaryGreen,
-                  size: 36,
-                ),
-              ),
-              const SizedBox(height: 16),
-              const Text(
-                'Verify Your Email',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 10),
-              Text(
-                'We sent a verification link to:',
-                style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 6),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 8,
-                ),
-                decoration: BoxDecoration(
-                  color: AppColors.primaryGreen.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Text(
-                  email,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
+        builder: (ctx, setS) {
+          String getOtp() => controllers.map((c) => c.text).join();
+
+          Future<void> doVerify() async {
+            final otp = getOtp();
+            if (otp.length < 6) {
+              setS(() => errorMsg = 'Please enter all 6 digits');
+              return;
+            }
+            setS(() {
+              isVerifying = true;
+              errorMsg = null;
+            });
+
+            final vr = await EmailService.verifyOTP(
+              email: email,
+              enteredOtp: otp,
+            );
+            if (vr['success'] != true) {
+              setS(() {
+                isVerifying = false;
+                errorMsg = vr['message'];
+              });
+              return;
+            }
+
+            final rr = await FirebaseAuthService.registerUser(
+              name: name,
+              mobile: mobile,
+              email: email,
+              password: password,
+            );
+            setS(() => isVerifying = false);
+
+            if (rr['success'] == true) {
+              if (ctx.mounted) Navigator.pop(ctx);
+              if (mounted) {
+                _registerNameController.clear();
+                _registerMobileController.clear();
+                _registerEmailController.clear();
+                _registerPasswordController.clear();
+                _tabController.animateTo(0);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Account created! Please login.'),
+                    backgroundColor: Colors.green,
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              }
+            } else {
+              setS(() => errorMsg = rr['message'] ?? 'Registration failed');
+            }
+          }
+
+          return AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            contentPadding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+            actionsPadding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 68,
+                  height: 68,
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryGreen.withValues(alpha: 0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.email_rounded,
                     color: AppColors.primaryGreen,
-                    fontSize: 14,
+                    size: 34,
                   ),
                 ),
-              ),
-              const SizedBox(height: 14),
-              Text(
-                'Click the link in the email to verify your account, then tap "I\'ve Verified" below.',
-                style: TextStyle(
-                  fontSize: 13,
-                  color: Colors.grey.shade600,
-                  height: 1.5,
+                const SizedBox(height: 14),
+                const Text(
+                  'Enter OTP',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                 ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 6),
-              Text(
-                'Check your spam/junk folder if you don\'t see it.',
-                style: TextStyle(fontSize: 12, color: Colors.orange.shade700),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 16),
-            ],
-          ),
-          actions: [
-            // Resend button
-            TextButton.icon(
-              onPressed: isResending
-                  ? null
-                  : () async {
-                      setS(() => isResending = true);
-                      try {
-                        final user = FirebaseAuth.instance.currentUser;
-                        await user?.sendEmailVerification();
-                        setS(() => isResending = false);
+                const SizedBox(height: 6),
+                Text(
+                  'We sent a 6-digit code to',
+                  style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                ),
+                const SizedBox(height: 4),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryGreen.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    email,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.primaryGreen,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Valid for 10 minutes',
+                  style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                ),
+                const SizedBox(height: 18),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: List.generate(
+                    6,
+                    (i) => SizedBox(
+                      width: 42,
+                      height: 50,
+                      child: TextField(
+                        controller: controllers[i],
+                        focusNode: focusNodes[i],
+                        textAlign: TextAlign.center,
+                        keyboardType: TextInputType.number,
+                        maxLength: 1,
+                        inputFormatters: [
+                          FilteringTextInputFormatter.digitsOnly,
+                        ],
+                        style: const TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        decoration: InputDecoration(
+                          counterText: '',
+                          contentPadding: EdgeInsets.zero,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: BorderSide(color: Colors.grey.shade300),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: const BorderSide(
+                              color: AppColors.primaryGreen,
+                              width: 2,
+                            ),
+                          ),
+                          filled: true,
+                          fillColor: Colors.grey.shade50,
+                        ),
+                        onChanged: (val) {
+                          setS(() => errorMsg = null);
+                          if (val.isNotEmpty && i < 5) {
+                            focusNodes[i + 1].requestFocus();
+                          } else if (val.isEmpty && i > 0) {
+                            focusNodes[i - 1].requestFocus();
+                          }
+                          if (getOtp().length == 6) {
+                            Future.delayed(
+                              const Duration(milliseconds: 150),
+                              doVerify,
+                            );
+                          }
+                        },
+                      ),
+                    ),
+                  ),
+                ),
+                if (errorMsg != null) ...[
+                  const SizedBox(height: 10),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.red.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.error_outline,
+                          color: Colors.red,
+                          size: 16,
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            errorMsg!,
+                            style: const TextStyle(
+                              color: Colors.red,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 14),
+              ],
+            ),
+            actions: [
+              TextButton.icon(
+                onPressed: isResending
+                    ? null
+                    : () async {
+                        setS(() => isResending = true);
+                        final r = await EmailService.sendOTPEmail(
+                          email: email,
+                          name: name,
+                        );
+                        setS(() {
+                          isResending = false;
+                          errorMsg = null;
+                        });
+                        for (final c in controllers) c.clear();
+                        focusNodes[0].requestFocus();
                         if (ctx.mounted) {
                           ScaffoldMessenger.of(ctx).showSnackBar(
-                            const SnackBar(
-                              content: Text('Verification email resent!'),
-                              backgroundColor: Colors.green,
+                            SnackBar(
+                              content: Text(
+                                r['success'] == true
+                                    ? 'New OTP sent to $email'
+                                    : r['message'] ?? 'Failed',
+                              ),
+                              backgroundColor: r['success'] == true
+                                  ? Colors.green
+                                  : Colors.red,
                               behavior: SnackBarBehavior.floating,
                             ),
                           );
                         }
-                      } catch (_) {
-                        setS(() => isResending = false);
-                      }
-                    },
-              icon: isResending
-                  ? const SizedBox(
-                      width: 14,
-                      height: 14,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.refresh, size: 16),
-              label: Text(isResending ? 'Sending...' : 'Resend Email'),
+                      },
+                icon: isResending
+                    ? const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.refresh, size: 16),
+                label: Text(isResending ? 'Sending...' : 'Resend OTP'),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primaryGreen,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+                onPressed: isVerifying ? null : doVerify,
+                child: isVerifying
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2,
+                        ),
+                      )
+                    : const Text(
+                        'Verify',
+                        style: TextStyle(color: Colors.white),
+                      ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+    Future.delayed(const Duration(milliseconds: 300), () {
+      if (focusNodes[0].canRequestFocus) focusNodes[0].requestFocus();
+    });
+  }
+
+  // ── GOOGLE LOGIN ──────────────────────────────────────────────────────────
+  Future<void> _handleGoogleLogin() async {
+    setState(() => _isLoading = true);
+    try {
+      await FirebaseAuth.instance.signOut();
+      final result = await AuthService.signInWithGoogle();
+      setState(() => _isLoading = false);
+      if (!mounted) return;
+      if (result['success']) {
+        await _navigateAfterLogin();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(result['message']),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (_) {
+      setState(() => _isLoading = false);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Google sign-in failed'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  // ── LOGIN ─────────────────────────────────────────────────────────────────
+  Future<void> _handleLogin() async {
+    if (!_loginFormKey.currentState!.validate()) return;
+    setState(() => _isLoading = true);
+    try {
+      await FirebaseAuth.instance.signOut();
+      final result = await AuthService.loginUser(
+        email: _loginEmailController.text.trim(),
+        password: _loginPasswordController.text,
+      );
+      setState(() => _isLoading = false);
+      if (!mounted) return;
+      if (result['success']) {
+        await _navigateAfterLogin();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(result['message'] ?? 'Wrong ID/Password entered'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (_) {
+      setState(() => _isLoading = false);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Wrong ID/Password entered'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  Future<void> _navigateAfterLogin() async {
+    final userData = await AuthService.getUserData();
+    if (!mounted) return;
+    final role = userData?['role'] as String? ?? 'member';
+    final isAdmin =
+        role == 'superAdmin' ||
+        role == 'systemAdmin' ||
+        role == 'supportAdmin' ||
+        role == 'contentAdmin';
+    if (isAdmin) {
+      context.go(AppRouter.admin);
+      return;
+    }
+    final messId = userData?['messId'] as String? ?? '';
+    if (messId.isNotEmpty) {
+      try {
+        final messDoc = await FirebaseFirestore.instance
+            .collection('messes')
+            .doc(messId)
+            .get();
+        final setupComplete =
+            messDoc.data()?['setupComplete'] as bool? ?? false;
+        if (!mounted) return;
+        context.go(
+          setupComplete ? AppRouter.dashboard : AppRouter.messSettings,
+        );
+      } catch (_) {
+        if (mounted) context.go(AppRouter.dashboard);
+      }
+    } else {
+      context.go(AppRouter.createJoinMess);
+    }
+  }
+
+  // ── FORGOT PASSWORD ───────────────────────────────────────────────────────
+  void _showForgotPasswordDialog() {
+    final emailCtrl = TextEditingController(
+      text: _loginEmailController.text.trim(),
+    );
+    bool isSending = false;
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setS) => AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: const Text('Reset Password'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Enter your email and we\'ll send a reset link.',
+                style: TextStyle(fontSize: 13, color: AppColors.textLight),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: emailCtrl,
+                keyboardType: TextInputType.emailAddress,
+                decoration: InputDecoration(
+                  hintText: 'Email address',
+                  prefixIcon: const Icon(Icons.email_outlined),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(
+                      color: AppColors.primaryGreen,
+                      width: 2,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
             ),
-            // Verified button
             ElevatedButton(
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primaryGreen,
@@ -210,55 +523,66 @@ class _LoginPageState extends State<LoginPage>
                   borderRadius: BorderRadius.circular(10),
                 ),
               ),
-              onPressed: isChecking
+              onPressed: isSending
                   ? null
                   : () async {
-                      setS(() => isChecking = true);
+                      final email = emailCtrl.text.trim();
+                      if (email.isEmpty || !email.contains('@')) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Please enter a valid email'),
+                            backgroundColor: Colors.orange,
+                          ),
+                        );
+                        return;
+                      }
+                      setS(() => isSending = true);
                       try {
-                        // Reload user to get latest emailVerified status
-                        final user = FirebaseAuth.instance.currentUser;
-                        await user?.reload();
-                        final refreshed = FirebaseAuth.instance.currentUser;
-
-                        if (refreshed?.emailVerified == true) {
-                          if (ctx.mounted) Navigator.pop(ctx);
-                          if (mounted) {
-                            // Clear form
-                            _registerNameController.clear();
-                            _registerMobileController.clear();
-                            _registerEmailController.clear();
-                            _registerPasswordController.clear();
-                            _tabController.animateTo(0);
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  'Email verified! You can now login.',
-                                ),
-                                backgroundColor: Colors.green,
-                                behavior: SnackBarBehavior.floating,
+                        await FirebaseAuth.instance.sendPasswordResetEmail(
+                          email: email,
+                        );
+                        if (ctx.mounted) Navigator.pop(ctx);
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                'Reset link sent to $email — check inbox & spam.',
                               ),
-                            );
-                          }
-                        } else {
-                          setS(() => isChecking = false);
-                          if (ctx.mounted) {
-                            ScaffoldMessenger.of(ctx).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  'Email not verified yet. Please click the link in your email.',
-                                ),
-                                backgroundColor: Colors.orange,
-                                behavior: SnackBarBehavior.floating,
-                                duration: Duration(seconds: 4),
-                              ),
-                            );
-                          }
+                              backgroundColor: Colors.green,
+                              behavior: SnackBarBehavior.floating,
+                              duration: const Duration(seconds: 6),
+                            ),
+                          );
                         }
-                      } catch (_) {
-                        setS(() => isChecking = false);
+                      } on FirebaseAuthException catch (e) {
+                        setS(() => isSending = false);
+                        final msg = e.code == 'user-not-found'
+                            ? 'No account found with this email'
+                            : e.code == 'invalid-email'
+                            ? 'Invalid email address'
+                            : 'Error (${e.code}): ${e.message}';
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(msg),
+                              backgroundColor: Colors.red,
+                              duration: const Duration(seconds: 6),
+                            ),
+                          );
+                        }
+                      } catch (e) {
+                        setS(() => isSending = false);
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Error: $e'),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                        }
                       }
                     },
-              child: isChecking
+              child: isSending
                   ? const SizedBox(
                       width: 18,
                       height: 18,
@@ -268,7 +592,7 @@ class _LoginPageState extends State<LoginPage>
                       ),
                     )
                   : const Text(
-                      "I've Verified",
+                      'Send Link',
                       style: TextStyle(color: Colors.white),
                     ),
             ),
@@ -278,6 +602,7 @@ class _LoginPageState extends State<LoginPage>
     );
   }
 
+  // ── BUILD ─────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -361,311 +686,22 @@ class _LoginPageState extends State<LoginPage>
     );
   }
 
-  Future<void> _handleGoogleLogin() async {
-    setState(() => _isLoading = true);
-    try {
-      await FirebaseAuth.instance.signOut();
-      final result = await AuthService.signInWithGoogle();
-      setState(() => _isLoading = false);
-      if (!mounted) return;
-      if (result['success']) {
-        final userData = await AuthService.getUserData();
-        if (!mounted) return;
-        final role = userData?['role'] as String? ?? 'member';
-        final isAdmin =
-            role == 'superAdmin' ||
-            role == 'systemAdmin' ||
-            role == 'supportAdmin' ||
-            role == 'contentAdmin';
-        if (isAdmin) {
-          context.go(AppRouter.admin);
-        } else if (userData != null &&
-            userData['messId'] != null &&
-            (userData['messId'] as String).isNotEmpty) {
-          // Check mess setup
-          final messId = userData['messId'] as String;
-          try {
-            final messDoc = await FirebaseFirestore.instance
-                .collection('messes')
-                .doc(messId)
-                .get();
-            final setupComplete =
-                messDoc.data()?['setupComplete'] as bool? ?? false;
-            if (!mounted) return;
-            if (setupComplete) {
-              context.go(AppRouter.dashboard);
-            } else {
-              context.go(AppRouter.messSettings);
-            }
-          } catch (_) {
-            if (mounted) context.go(AppRouter.dashboard);
-          }
-        } else {
-          context.go(AppRouter.createJoinMess);
-        }
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(result['message']),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    } catch (e) {
-      setState(() => _isLoading = false);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Google sign-in failed'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-  }
-
-  Future<void> _handleLogin() async {
-    if (!_loginFormKey.currentState!.validate()) return;
-
-    setState(() => _isLoading = true);
-
-    try {
-      // Always sign out any existing session before logging in a new user.
-      // This prevents stale sessions (e.g. super admin) from persisting
-      // when a different user tries to log in.
-      await FirebaseAuth.instance.signOut();
-
-      final result = await AuthService.loginUser(
-        email: _loginEmailController.text.trim(),
-        password: _loginPasswordController.text,
-      );
-
-      setState(() => _isLoading = false);
-
-      if (!mounted) return;
-
-      if (result['success']) {
-        // Get user data to check role and mess
-        final userData = await AuthService.getUserData();
-
-        if (!mounted) return;
-
-        final role = userData?['role'] as String? ?? 'member';
-        final isAdmin =
-            role == 'superAdmin' ||
-            role == 'systemAdmin' ||
-            role == 'supportAdmin' ||
-            role == 'contentAdmin';
-
-        if (isAdmin) {
-          context.go(AppRouter.admin);
-        } else if (userData != null &&
-            userData['messId'] != null &&
-            (userData['messId'] as String).isNotEmpty) {
-          // Check if mess setup is complete
-          final messId = userData['messId'] as String;
-          try {
-            final messDoc = await FirebaseFirestore.instance
-                .collection('messes')
-                .doc(messId)
-                .get();
-            final setupComplete =
-                messDoc.data()?['setupComplete'] as bool? ?? false;
-            if (!mounted) return;
-            if (setupComplete) {
-              context.go(AppRouter.dashboard);
-            } else {
-              context.go(AppRouter.messSettings);
-            }
-          } catch (_) {
-            if (mounted) context.go(AppRouter.dashboard);
-          }
-        } else {
-          context.go(AppRouter.createJoinMess);
-        }
-      } else {
-        // Check if needs email verification
-        if (result['needsVerification'] == true) {
-          _showEmailVerificationDialog(_loginEmailController.text.trim());
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(result['message']),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      setState(() => _isLoading = false);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Wrong ID/Password entered'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-  }
-
-  void _showForgotPasswordDialog() {
-    final emailCtrl = TextEditingController(
-      text: _loginEmailController.text.trim(),
-    );
-    bool isSending = false;
-
-    showDialog(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setS) => AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          title: const Text('Reset Password'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Enter your email address and we\'ll send you a link to reset your password.',
-                style: TextStyle(fontSize: 13, color: AppColors.textLight),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: emailCtrl,
-                keyboardType: TextInputType.emailAddress,
-                decoration: InputDecoration(
-                  hintText: 'Email address',
-                  prefixIcon: const Icon(Icons.email_outlined),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(
-                      color: AppColors.primaryGreen,
-                      width: 2,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primaryGreen,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-              ),
-              onPressed: isSending
-                  ? null
-                  : () async {
-                      final email = emailCtrl.text.trim();
-                      if (email.isEmpty || !email.contains('@')) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Please enter a valid email'),
-                            backgroundColor: Colors.orange,
-                          ),
-                        );
-                        return;
-                      }
-                      setS(() => isSending = true);
-                      try {
-                        await FirebaseAuth.instance.sendPasswordResetEmail(
-                          email: email,
-                        );
-                        if (ctx.mounted) Navigator.pop(ctx);
-                        if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                'Reset link sent to $email — check inbox & spam folder.',
-                              ),
-                              backgroundColor: Colors.green,
-                              behavior: SnackBarBehavior.floating,
-                              duration: const Duration(seconds: 6),
-                            ),
-                          );
-                        }
-                      } on FirebaseAuthException catch (e) {
-                        setS(() => isSending = false);
-                        String msg;
-                        switch (e.code) {
-                          case 'user-not-found':
-                            msg = 'No account found with this email';
-                            break;
-                          case 'invalid-email':
-                            msg = 'Invalid email address';
-                            break;
-                          case 'too-many-requests':
-                            msg = 'Too many attempts. Try again later';
-                            break;
-                          default:
-                            msg =
-                                'Error (${e.code}): ${e.message ?? 'Failed to send'}';
-                        }
-                        if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(msg),
-                              backgroundColor: Colors.red,
-                              duration: const Duration(seconds: 6),
-                            ),
-                          );
-                        }
-                      } catch (e) {
-                        setS(() => isSending = false);
-                        if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('Error: $e'),
-                              backgroundColor: Colors.red,
-                              duration: const Duration(seconds: 6),
-                            ),
-                          );
-                        }
-                      }
-                    },
-              child: isSending
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(
-                        color: Colors.white,
-                        strokeWidth: 2,
-                      ),
-                    )
-                  : const Text(
-                      'Send Link',
-                      style: TextStyle(color: Colors.white),
-                    ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  Widget _inputBox(Widget child) => Container(
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(color: AppColors.primaryGreen.withValues(alpha: 0.2)),
+    ),
+    child: child,
+  );
 
   Widget _buildLoginForm() {
     return Form(
       key: _loginFormKey,
       child: Column(
         children: [
-          Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: AppColors.primaryGreen.withValues(alpha: 0.2),
-              ),
-            ),
-            child: TextFormField(
+          _inputBox(
+            TextFormField(
               controller: _loginEmailController,
               decoration: InputDecoration(
                 hintText: 'Mobile/Email',
@@ -677,22 +713,15 @@ class _LoginPageState extends State<LoginPage>
                   horizontal: 20,
                   vertical: 16,
                 ),
-                filled: false,
               ),
-              validator: (value) => value?.isEmpty ?? true ? 'Required' : null,
+              validator: (v) => v?.isEmpty ?? true ? 'Required' : null,
             ),
           ),
           const SizedBox(height: 16),
-          Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: AppColors.primaryGreen.withValues(alpha: 0.2),
-              ),
-            ),
-            child: TextFormField(
+          _inputBox(
+            TextFormField(
               controller: _loginPasswordController,
+              obscureText: !_loginPasswordVisible,
               decoration: InputDecoration(
                 hintText: 'Password',
                 hintStyle: TextStyle(
@@ -703,7 +732,6 @@ class _LoginPageState extends State<LoginPage>
                   horizontal: 20,
                   vertical: 16,
                 ),
-                filled: false,
                 suffixIcon: IconButton(
                   icon: Icon(
                     _loginPasswordVisible
@@ -717,22 +745,21 @@ class _LoginPageState extends State<LoginPage>
                   ),
                 ),
               ),
-              obscureText: !_loginPasswordVisible,
-              validator: (value) => value?.isEmpty ?? true ? 'Required' : null,
+              validator: (v) => v?.isEmpty ?? true ? 'Required' : null,
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
           Align(
             alignment: Alignment.centerRight,
             child: TextButton(
-              onPressed: () => _showForgotPasswordDialog(),
+              onPressed: _showForgotPasswordDialog,
               child: Text(
                 'Forgot Password?',
                 style: TextStyle(color: AppColors.primaryGreen, fontSize: 14),
               ),
             ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 16),
           SizedBox(
             width: double.infinity,
             height: 56,
@@ -740,17 +767,14 @@ class _LoginPageState extends State<LoginPage>
               onPressed: _isLoading ? null : _handleLogin,
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.buttonGreen,
-                disabledBackgroundColor: AppColors.buttonGreen.withValues(
-                  alpha: 0.6,
-                ),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
               child: _isLoading
                   ? const SizedBox(
-                      height: 24,
                       width: 24,
+                      height: 24,
                       child: CircularProgressIndicator(
                         color: Colors.white,
                         strokeWidth: 2,
@@ -766,56 +790,9 @@ class _LoginPageState extends State<LoginPage>
             ),
           ),
           const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: Divider(
-                  color: AppColors.textLight.withValues(alpha: 0.3),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: Text(
-                  'or',
-                  style: TextStyle(color: AppColors.textLight, fontSize: 13),
-                ),
-              ),
-              Expanded(
-                child: Divider(
-                  color: AppColors.textLight.withValues(alpha: 0.3),
-                ),
-              ),
-            ],
-          ),
+          _orDivider(),
           const SizedBox(height: 16),
-          SizedBox(
-            width: double.infinity,
-            height: 56,
-            child: OutlinedButton.icon(
-              onPressed: _isLoading ? null : _handleGoogleLogin,
-              icon: Image.network(
-                'https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg',
-                width: 22,
-                height: 22,
-                errorBuilder: (_, __, ___) =>
-                    const Icon(Icons.g_mobiledata, size: 22),
-              ),
-              label: const Text(
-                'Sign in with Google',
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
-              ),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: Colors.black87,
-                side: BorderSide(
-                  color: AppColors.primaryGreen.withValues(alpha: 0.4),
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                backgroundColor: Colors.white,
-              ),
-            ),
-          ),
+          _googleButton('Sign in with Google'),
         ],
       ),
     );
@@ -827,15 +804,8 @@ class _LoginPageState extends State<LoginPage>
       child: SingleChildScrollView(
         child: Column(
           children: [
-            Container(
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: AppColors.primaryGreen.withValues(alpha: 0.2),
-                ),
-              ),
-              child: TextFormField(
+            _inputBox(
+              TextFormField(
                 controller: _registerNameController,
                 decoration: InputDecoration(
                   hintText: 'Your Name',
@@ -847,23 +817,15 @@ class _LoginPageState extends State<LoginPage>
                     horizontal: 20,
                     vertical: 16,
                   ),
-                  filled: false,
                 ),
-                validator: (value) =>
-                    value?.isEmpty ?? true ? 'Required' : null,
+                validator: (v) => v?.isEmpty ?? true ? 'Required' : null,
               ),
             ),
             const SizedBox(height: 16),
-            Container(
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: AppColors.primaryGreen.withValues(alpha: 0.2),
-                ),
-              ),
-              child: TextFormField(
+            _inputBox(
+              TextFormField(
                 controller: _registerMobileController,
+                keyboardType: TextInputType.phone,
                 decoration: InputDecoration(
                   hintText: 'Mobile number (017xxx)',
                   hintStyle: TextStyle(
@@ -874,27 +836,19 @@ class _LoginPageState extends State<LoginPage>
                     horizontal: 20,
                     vertical: 16,
                   ),
-                  filled: false,
                 ),
-                keyboardType: TextInputType.phone,
-                validator: (value) {
-                  if (value?.isEmpty ?? true) return 'Required';
-                  if (value!.length != 11) return 'Must be 11 digits';
+                validator: (v) {
+                  if (v?.isEmpty ?? true) return 'Required';
+                  if (v!.length != 11) return 'Must be 11 digits';
                   return null;
                 },
               ),
             ),
             const SizedBox(height: 16),
-            Container(
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: AppColors.primaryGreen.withValues(alpha: 0.2),
-                ),
-              ),
-              child: TextFormField(
+            _inputBox(
+              TextFormField(
                 controller: _registerEmailController,
+                keyboardType: TextInputType.emailAddress,
                 decoration: InputDecoration(
                   hintText: 'Email Address',
                   hintStyle: TextStyle(
@@ -905,27 +859,20 @@ class _LoginPageState extends State<LoginPage>
                     horizontal: 20,
                     vertical: 16,
                   ),
-                  filled: false,
                 ),
-                keyboardType: TextInputType.emailAddress,
-                validator: (value) {
-                  if (value?.isEmpty ?? true) return 'Required';
-                  if (!value!.contains('@')) return 'Invalid email';
+                validator: (v) {
+                  if (v?.isEmpty ?? true) return 'Required';
+                  if (!v!.contains('@')) return 'Invalid email';
                   return null;
                 },
               ),
             ),
             const SizedBox(height: 16),
-            Container(
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: AppColors.primaryGreen.withValues(alpha: 0.2),
-                ),
-              ),
-              child: TextFormField(
+            _inputBox(
+              TextFormField(
                 controller: _registerPasswordController,
+                obscureText: !_registerPasswordVisible,
+                onChanged: (v) => setState(() => _registerPassword = v),
                 decoration: InputDecoration(
                   hintText: 'Password (min 6 characters)',
                   hintStyle: TextStyle(
@@ -936,7 +883,6 @@ class _LoginPageState extends State<LoginPage>
                     horizontal: 20,
                     vertical: 16,
                   ),
-                  filled: false,
                   suffixIcon: IconButton(
                     icon: Icon(
                       _registerPasswordVisible
@@ -951,11 +897,9 @@ class _LoginPageState extends State<LoginPage>
                     ),
                   ),
                 ),
-                obscureText: !_registerPasswordVisible,
-                onChanged: (v) => setState(() => _registerPassword = v),
-                validator: (value) {
-                  if (value?.isEmpty ?? true) return 'Required';
-                  if (value!.length < 6) return 'Minimum 6 characters required';
+                validator: (v) {
+                  if (v?.isEmpty ?? true) return 'Required';
+                  if (v!.length < 6) return 'Minimum 6 characters required';
                   return null;
                 },
               ),
@@ -972,17 +916,14 @@ class _LoginPageState extends State<LoginPage>
                 onPressed: _isLoading ? null : _handleRegister,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.buttonGreen,
-                  disabledBackgroundColor: AppColors.buttonGreen.withValues(
-                    alpha: 0.6,
-                  ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
                 ),
                 child: _isLoading
                     ? const SizedBox(
-                        height: 24,
                         width: 24,
+                        height: 24,
                         child: CircularProgressIndicator(
                           color: Colors.white,
                           strokeWidth: 2,
@@ -998,69 +939,63 @@ class _LoginPageState extends State<LoginPage>
               ),
             ),
             const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: Divider(
-                    color: AppColors.textLight.withValues(alpha: 0.3),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: Text(
-                    'or',
-                    style: TextStyle(color: AppColors.textLight, fontSize: 13),
-                  ),
-                ),
-                Expanded(
-                  child: Divider(
-                    color: AppColors.textLight.withValues(alpha: 0.3),
-                  ),
-                ),
-              ],
-            ),
+            _orDivider(),
             const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              height: 56,
-              child: OutlinedButton.icon(
-                onPressed: _isLoading ? null : _handleGoogleLogin,
-                icon: Image.network(
-                  'https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg',
-                  width: 22,
-                  height: 22,
-                  errorBuilder: (_, __, ___) =>
-                      const Icon(Icons.g_mobiledata, size: 22),
-                ),
-                label: const Text(
-                  'Sign up with Google',
-                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
-                ),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.black87,
-                  side: BorderSide(
-                    color: AppColors.primaryGreen.withValues(alpha: 0.4),
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  backgroundColor: Colors.white,
-                ),
-              ),
-            ),
+            _googleButton('Sign up with Google'),
           ],
         ),
       ),
     );
   }
+
+  Widget _orDivider() => Row(
+    children: [
+      Expanded(
+        child: Divider(color: AppColors.textLight.withValues(alpha: 0.3)),
+      ),
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        child: Text(
+          'or',
+          style: TextStyle(color: AppColors.textLight, fontSize: 13),
+        ),
+      ),
+      Expanded(
+        child: Divider(color: AppColors.textLight.withValues(alpha: 0.3)),
+      ),
+    ],
+  );
+
+  Widget _googleButton(String label) => SizedBox(
+    width: double.infinity,
+    height: 56,
+    child: OutlinedButton.icon(
+      onPressed: _isLoading ? null : _handleGoogleLogin,
+      icon: Image.network(
+        'https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg',
+        width: 22,
+        height: 22,
+        errorBuilder: (_, __, ___) => const Icon(Icons.g_mobiledata, size: 22),
+      ),
+      label: Text(
+        label,
+        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
+      ),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: Colors.black87,
+        side: BorderSide(color: AppColors.primaryGreen.withValues(alpha: 0.4)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        backgroundColor: Colors.white,
+      ),
+    ),
+  );
 }
 
-// ── Password Strength Indicator ──────────────────────────────────────────────
+// ── Password Strength Bar ─────────────────────────────────────────────────────
 class _PasswordStrengthBar extends StatelessWidget {
   final String password;
   const _PasswordStrengthBar({required this.password});
 
-  // Returns 0-4 score
   int get _score {
     int s = 0;
     if (password.length >= 8) s++;
@@ -1070,44 +1005,16 @@ class _PasswordStrengthBar extends StatelessWidget {
     return s;
   }
 
-  String get _label {
-    switch (_score) {
-      case 0:
-      case 1:
-        return 'Weak';
-      case 2:
-        return 'Fair';
-      case 3:
-        return 'Good';
-      default:
-        return 'Strong';
-    }
-  }
+  String get _label =>
+      ['', 'Weak', 'Fair', 'Good', 'Strong'][_score.clamp(0, 4)];
 
-  Color get _color {
-    switch (_score) {
-      case 0:
-      case 1:
-        return Colors.red;
-      case 2:
-        return Colors.orange;
-      case 3:
-        return Colors.lightGreen;
-      default:
-        return Colors.green;
-    }
-  }
-
-  String get _suggestion {
-    final tips = <String>[];
-    if (password.length < 8) tips.add('8+ characters');
-    if (!password.contains(RegExp(r'[A-Z]'))) tips.add('uppercase letter');
-    if (!password.contains(RegExp(r'[0-9]'))) tips.add('a number');
-    if (!password.contains(RegExp(r'[!@#\$%^&*(),.?":{}|<>_\-]')))
-      tips.add('a symbol (!@#...)');
-    if (tips.isEmpty) return 'Great password!';
-    return 'Add: ${tips.join(', ')}';
-  }
+  Color get _color => [
+    Colors.grey,
+    Colors.red,
+    Colors.orange,
+    Colors.lightGreen,
+    Colors.green,
+  ][_score.clamp(0, 4)];
 
   @override
   Widget build(BuildContext context) {
@@ -1115,8 +1022,9 @@ class _PasswordStrengthBar extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
-          children: List.generate(4, (i) {
-            return Expanded(
+          children: List.generate(
+            4,
+            (i) => Expanded(
               child: Container(
                 margin: EdgeInsets.only(right: i < 3 ? 4 : 0),
                 height: 4,
@@ -1127,29 +1035,17 @@ class _PasswordStrengthBar extends StatelessWidget {
                       : Colors.grey.withValues(alpha: 0.25),
                 ),
               ),
-            );
-          }),
+            ),
+          ),
         ),
-        const SizedBox(height: 6),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              _label,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: _color,
-              ),
-            ),
-            Flexible(
-              child: Text(
-                _suggestion,
-                style: TextStyle(fontSize: 11, color: Colors.grey[600]),
-                textAlign: TextAlign.right,
-              ),
-            ),
-          ],
+        const SizedBox(height: 4),
+        Text(
+          _label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: _color,
+          ),
         ),
       ],
     );

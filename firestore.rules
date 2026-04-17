@@ -117,5 +117,10 @@ service cloud.firestore {
       allow create: if isAuth();
       allow update, delete: if isAuth() && isSystemAdmin();
     }
+
+    // ─── EMAIL OTPs ──────────────────────────────────────────────────────────
+    match /emailOtps/{email} {
+      allow read, write: if true; // public write needed for pre-auth OTP
+    }
   }
 }
