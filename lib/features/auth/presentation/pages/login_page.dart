@@ -170,7 +170,7 @@ class _LoginPageState extends State<LoginPage>
               ),
               const SizedBox(height: 32),
               SizedBox(
-                height: 520,
+                height: 620,
                 child: TabBarView(
                   controller: _tabController,
                   children: [_buildLoginForm(), _buildRegisterForm()],
@@ -315,9 +315,11 @@ class _LoginPageState extends State<LoginPage>
     } catch (e) {
       setState(() => _isLoading = false);
       if (!mounted) return;
-
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        const SnackBar(
+          content: Text('Wrong ID/Password entered'),
+          backgroundColor: Colors.red,
+        ),
       );
     }
   }
@@ -665,6 +667,57 @@ class _LoginPageState extends State<LoginPage>
                           fontWeight: FontWeight.w600,
                         ),
                       ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: Divider(
+                    color: AppColors.textLight.withValues(alpha: 0.3),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: Text(
+                    'or',
+                    style: TextStyle(color: AppColors.textLight, fontSize: 13),
+                  ),
+                ),
+                Expanded(
+                  child: Divider(
+                    color: AppColors.textLight.withValues(alpha: 0.3),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              height: 56,
+              child: OutlinedButton.icon(
+                onPressed: _isLoading ? null : _handleGoogleLogin,
+                icon: Image.network(
+                  'https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg',
+                  width: 22,
+                  height: 22,
+                  errorBuilder: (_, __, ___) =>
+                      const Icon(Icons.g_mobiledata, size: 22),
+                ),
+                label: const Text(
+                  'Sign up with Google',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
+                ),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.black87,
+                  side: BorderSide(
+                    color: AppColors.primaryGreen.withValues(alpha: 0.4),
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  backgroundColor: Colors.white,
+                ),
               ),
             ),
           ],
