@@ -686,8 +686,6 @@ class _LoginPageState extends State<LoginPage>
     );
   }
 
-  Widget _inputBox(Widget child) => child;
-
   Widget _field({
     required TextEditingController controller,
     required String label,
@@ -833,105 +831,56 @@ class _LoginPageState extends State<LoginPage>
       child: SingleChildScrollView(
         child: Column(
           children: [
-            _inputBox(
-              TextFormField(
-                controller: _registerNameController,
-                decoration: InputDecoration(
-                  hintText: 'Your Name',
-                  hintStyle: TextStyle(
-                    color: AppColors.textLight.withValues(alpha: 0.6),
-                  ),
-                  border: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 16,
-                  ),
-                ),
-                validator: (v) => v?.isEmpty ?? true ? 'Required' : null,
-              ),
+            _field(
+              controller: _registerNameController,
+              label: 'Your Name',
+              validator: (v) => v?.isEmpty ?? true ? 'Required' : null,
             ),
             const SizedBox(height: 16),
-            _inputBox(
-              TextFormField(
-                controller: _registerMobileController,
-                keyboardType: TextInputType.phone,
-                decoration: InputDecoration(
-                  hintText: 'Mobile number (017xxx)',
-                  hintStyle: TextStyle(
-                    color: AppColors.textLight.withValues(alpha: 0.6),
-                  ),
-                  border: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 16,
-                  ),
-                ),
-                validator: (v) {
-                  if (v?.isEmpty ?? true) return 'Required';
-                  if (v!.length != 11) return 'Must be 11 digits';
-                  return null;
-                },
-              ),
+            _field(
+              controller: _registerMobileController,
+              label: 'Mobile Number (017xxx)',
+              keyboardType: TextInputType.phone,
+              validator: (v) {
+                if (v?.isEmpty ?? true) return 'Required';
+                if (v!.length != 11) return 'Must be 11 digits';
+                return null;
+              },
             ),
             const SizedBox(height: 16),
-            _inputBox(
-              TextFormField(
-                controller: _registerEmailController,
-                keyboardType: TextInputType.emailAddress,
-                decoration: InputDecoration(
-                  hintText: 'Email Address',
-                  hintStyle: TextStyle(
-                    color: AppColors.textLight.withValues(alpha: 0.6),
-                  ),
-                  border: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 16,
-                  ),
-                ),
-                validator: (v) {
-                  if (v?.isEmpty ?? true) return 'Required';
-                  if (!v!.contains('@')) return 'Invalid email';
-                  return null;
-                },
-              ),
+            _field(
+              controller: _registerEmailController,
+              label: 'Email Address',
+              keyboardType: TextInputType.emailAddress,
+              validator: (v) {
+                if (v?.isEmpty ?? true) return 'Required';
+                if (!v!.contains('@')) return 'Invalid email';
+                return null;
+              },
             ),
             const SizedBox(height: 16),
-            _inputBox(
-              TextFormField(
-                controller: _registerPasswordController,
-                obscureText: !_registerPasswordVisible,
-                onChanged: (v) => setState(() => _registerPassword = v),
-                decoration: InputDecoration(
-                  hintText: 'Password (min 6 characters)',
-                  hintStyle: TextStyle(
-                    color: AppColors.textLight.withValues(alpha: 0.6),
-                  ),
-                  border: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 16,
-                  ),
-                  suffixIcon: IconButton(
-                    icon: Icon(
-                      _registerPasswordVisible
-                          ? Icons.visibility
-                          : Icons.visibility_off,
-                      color: AppColors.textLight,
-                      size: 20,
-                    ),
-                    onPressed: () => setState(
-                      () =>
-                          _registerPasswordVisible = !_registerPasswordVisible,
-                    ),
-                  ),
+            _field(
+              controller: _registerPasswordController,
+              label: 'Password (min 6 characters)',
+              obscureText: !_registerPasswordVisible,
+              onChanged: (v) => setState(() => _registerPassword = v),
+              suffixIcon: IconButton(
+                icon: Icon(
+                  _registerPasswordVisible
+                      ? Icons.visibility
+                      : Icons.visibility_off,
+                  color: AppColors.textLight,
+                  size: 20,
                 ),
-                validator: (v) {
-                  if (v?.isEmpty ?? true) return 'Required';
-                  if (v!.length < 6) return 'Minimum 6 characters required';
-                  return null;
-                },
+                onPressed: () => setState(
+                  () => _registerPasswordVisible = !_registerPasswordVisible,
+                ),
               ),
+              validator: (v) {
+                if (v?.isEmpty ?? true) return 'Required';
+                if (v!.length < 6) return 'Minimum 6 characters required';
+                return null;
+              },
             ),
             if (_registerPassword.isNotEmpty) ...[
               const SizedBox(height: 8),
@@ -967,10 +916,6 @@ class _LoginPageState extends State<LoginPage>
                       ),
               ),
             ),
-            const SizedBox(height: 16),
-            _orDivider(),
-            const SizedBox(height: 16),
-            _googleButton('Sign up with Google'),
           ],
         ),
       ),
