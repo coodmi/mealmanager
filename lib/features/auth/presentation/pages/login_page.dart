@@ -608,15 +608,15 @@ class _LoginPageState extends State<LoginPage>
     return Scaffold(
       backgroundColor: AppColors.bgColor,
       body: SafeArea(
-        child: SingleChildScrollView(
+        child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 24),
           child: Column(
             children: [
-              const SizedBox(height: 60),
+              const SizedBox(height: 40),
               Image.asset(
                 'assets/images/logo.png',
-                width: 130,
-                height: 130,
+                width: 100,
+                height: 100,
                 fit: BoxFit.contain,
               ),
               const SizedBox(height: 24),
@@ -672,10 +672,10 @@ class _LoginPageState extends State<LoginPage>
                 ),
               ),
               const SizedBox(height: 32),
-              SizedBox(
-                height: 620,
+              Expanded(
                 child: TabBarView(
                   controller: _tabController,
+                  physics: const NeverScrollableScrollPhysics(),
                   children: [_buildLoginForm(), _buildRegisterForm()],
                 ),
               ),
