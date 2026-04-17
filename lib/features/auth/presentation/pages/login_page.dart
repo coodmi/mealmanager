@@ -402,11 +402,11 @@ class _LoginPageState extends State<LoginPage>
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
                               content: Text(
-                                'Password reset link sent to $email',
+                                'Reset link sent to $email — check inbox & spam folder.',
                               ),
                               backgroundColor: Colors.green,
                               behavior: SnackBarBehavior.floating,
-                              duration: const Duration(seconds: 4),
+                              duration: const Duration(seconds: 6),
                             ),
                           );
                         }
@@ -424,13 +424,26 @@ class _LoginPageState extends State<LoginPage>
                             msg = 'Too many attempts. Try again later';
                             break;
                           default:
-                            msg = 'Failed to send reset email';
+                            msg =
+                                'Error (${e.code}): ${e.message ?? 'Failed to send'}';
                         }
                         if (mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
                               content: Text(msg),
                               backgroundColor: Colors.red,
+                              duration: const Duration(seconds: 6),
+                            ),
+                          );
+                        }
+                      } catch (e) {
+                        setS(() => isSending = false);
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Error: $e'),
+                              backgroundColor: Colors.red,
+                              duration: const Duration(seconds: 6),
                             ),
                           );
                         }
