@@ -705,8 +705,6 @@ class _MealPageWorkingState extends State<MealPageWorking>
                       _selectedDate.day,
                     );
 
-                    print('Checking for existing meals...');
-
                     if (!isGuest) {
                       // Check if meal already exists for member
                       final existingMealQuery = await FirebaseFirestore.instance
@@ -720,10 +718,6 @@ class _MealPageWorkingState extends State<MealPageWorking>
                             isEqualTo: Timestamp.fromDate(mealDate),
                           )
                           .get();
-
-                      print(
-                        'Existing meals found: ${existingMealQuery.docs.length}',
-                      );
 
                       if (existingMealQuery.docs.isNotEmpty) {
                         if (!mounted) return;
