@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../../core/services/firebase_mess_service.dart';
@@ -457,53 +456,37 @@ class _CreateJoinMessPageState extends State<CreateJoinMessPage> {
               _setupStep(
                 '1',
                 'Meal Entry System',
-                'Choose Manual or Auto meal entry mode',
+                'Choose Manual or Auto meal entry mode from Mess Setting',
                 Icons.restaurant_menu,
               ),
               _setupStep(
                 '2',
                 'Add Members',
-                'Invite members using your Mess ID',
+                'Add members or ask them to join using your Mess ID',
                 Icons.people,
               ),
               _setupStep(
                 '3',
-                'Bazar Schedule',
-                'Set up who does bazar and when',
-                Icons.shopping_basket,
+                'Deposit',
+                'Add deposit from mess members',
+                Icons.account_balance_wallet,
               ),
               _setupStep(
                 '4',
-                'Subscription',
-                'Choose a plan for your mess',
-                Icons.workspace_premium,
+                'Expense Entry',
+                'Record your bazar or other expenses',
+                Icons.receipt_long,
+              ),
+              _setupStep(
+                '5',
+                'Bazar Schedule',
+                'Set up who does bazar and when',
+                Icons.shopping_basket,
               ),
             ],
           ),
         ),
         actions: [
-          TextButton(
-            onPressed: () async {
-              Navigator.pop(ctx);
-              // Mark setup complete so they can access dashboard
-              final user = FirebaseAuth.instance.currentUser;
-              if (user != null) {
-                final userDoc = await FirebaseFirestore.instance
-                    .collection('users')
-                    .doc(user.uid)
-                    .get();
-                final messId = userDoc.data()?['messId'] as String? ?? '';
-                if (messId.isNotEmpty) {
-                  await FirebaseFirestore.instance
-                      .collection('messes')
-                      .doc(messId)
-                      .update({'setupComplete': true});
-                }
-              }
-              if (context.mounted) context.go(AppRouter.dashboard);
-            },
-            child: const Text('Skip for now'),
-          ),
           ElevatedButton.icon(
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.primaryGreen,
