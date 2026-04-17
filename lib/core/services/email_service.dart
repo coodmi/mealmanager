@@ -5,7 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 class EmailService {
   static const String _serviceId = 'service_54jp6ru';
-  static const String _templateId = 'template_nauz08m';
+  static const String _templateId = 'template_w3o8w33';
   static const String _publicKey = 'yxfv0dFu6Lq67B37E';
 
   // Generate 6-digit OTP
