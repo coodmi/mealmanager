@@ -25,12 +25,27 @@ class AppTheme {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
     ),
     elevatedButtonTheme: ElevatedButtonThemeData(
-      style: ElevatedButton.styleFrom(
-        backgroundColor: AppColors.buttonGreen,
-        foregroundColor: Colors.white,
-        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
+      style:
+          ElevatedButton.styleFrom(
+            backgroundColor: AppColors.buttonGreen,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            elevation: 0,
+            shadowColor: Colors.transparent,
+          ).copyWith(
+            overlayColor: WidgetStateProperty.resolveWith<Color?>((states) {
+              if (states.contains(WidgetState.hovered)) {
+                return Colors.white.withValues(alpha: 0.1);
+              }
+              if (states.contains(WidgetState.pressed)) {
+                return Colors.white.withValues(alpha: 0.15);
+              }
+              return null;
+            }),
+          ),
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
@@ -71,12 +86,27 @@ class AppTheme {
       elevation: 0,
     ),
     elevatedButtonTheme: ElevatedButtonThemeData(
-      style: ElevatedButton.styleFrom(
-        backgroundColor: AppColors.buttonGreen,
-        foregroundColor: Colors.white,
-        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
+      style:
+          ElevatedButton.styleFrom(
+            backgroundColor: AppColors.buttonGreen,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            elevation: 0,
+            shadowColor: Colors.transparent,
+          ).copyWith(
+            overlayColor: WidgetStateProperty.resolveWith<Color?>((states) {
+              if (states.contains(WidgetState.hovered)) {
+                return Colors.white.withValues(alpha: 0.1);
+              }
+              if (states.contains(WidgetState.pressed)) {
+                return Colors.white.withValues(alpha: 0.15);
+              }
+              return null;
+            }),
+          ),
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
