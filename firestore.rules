@@ -1,0 +1,121 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper: check if user is authenticated
+    function isAuth() {
+      return request.auth != null;
+    }
+
+    // Helper: get user role
+    function userRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+
+    // Helper: get user's messId
+    function userMessId() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.messId;
+    }
+
+    // Helper: is super/system/support/content admin
+    function isSystemAdmin() {
+      return userRole() in ['superAdmin', 'systemAdmin', 'supportAdmin', 'contentAdmin'];
+    }
+
+    // Helper: is mess manager
+    function isManager() {
+      return userRole() == 'manager';
+    }
+
+    // Helper: is member of a specific mess
+    function isMemberOf(messId) {
+      return userMessId() == messId;
+    }
+
+    // ─── USERS ───────────────────────────────────────────────────────────────
+    match /users/{userId} {
+      allow read: if isAuth();
+      allow create: if isAuth() && request.auth.uid == userId;
+      allow update: if isAuth() && (request.auth.uid == userId || isSystemAdmin());
+      allow delete: if isSystemAdmin();
+    }
+
+    // ─── MESSES ──────────────────────────────────────────────────────────────
+    match /messes/{messId} {
+      // Any authenticated user can read a mess (needed for join flow)
+      allow read: if isAuth();
+      // Any authenticated user can create a mess (they become manager)
+      allow create: if isAuth();
+      // Only mess members (manager or member) can update
+      allow update: if isAuth() && isMemberOf(messId);
+      // Only manager or system admin can delete
+      allow delete: if isAuth() && (isManager() || isSystemAdmin());
+
+      // ─── MEMBERS subcollection ─────────────────────────────────────────────
+      match /members/{memberId} {
+        allow read: if isAuth() && isMemberOf(messId);
+        allow create: if isAuth() && (isManager() || isSystemAdmin());
+        allow update: if isAuth() && (isManager() || isSystemAdmin() || request.auth.uid == memberId);
+        allow delete: if isAuth() && (isManager() || isSystemAdmin());
+      }
+
+      // ─── TRANSACTIONS subcollection ────────────────────────────────────────
+      match /transactions/{txId} {
+        allow read: if isAuth() && isMemberOf(messId);
+        allow create: if isAuth() && (isManager() || isSystemAdmin());
+        allow update: if isAuth() && (isManager() || isSystemAdmin());
+        allow delete: if isAuth() && (isManager() || isSystemAdmin());
+      }
+
+      // ─── MEALS subcollection ───────────────────────────────────────────────
+      match /meals/{mealId} {
+        allow read: if isAuth() && isMemberOf(messId);
+        allow create: if isAuth() && isMemberOf(messId);
+        allow update: if isAuth() && (isManager() || isSystemAdmin() || request.auth.uid == resource.data.memberId);
+        allow delete: if isAuth() && (isManager() || isSystemAdmin());
+      }
+
+      // ─── EXPENSES subcollection ────────────────────────────────────────────
+      match /expenses/{expId} {
+        allow read: if isAuth() && isMemberOf(messId);
+        allow create: if isAuth() && (isManager() || isSystemAdmin());
+        allow update: if isAuth() && (isManager() || isSystemAdmin());
+        allow delete: if isAuth() && (isManager() || isSystemAdmin());
+      }
+
+      // ─── WITHDRAWALS subcollection ─────────────────────────────────────────
+      match /withdrawals/{wdId} {
+        allow read: if isAuth() && isMemberOf(messId);
+        allow create: if isAuth() && isMemberOf(messId);
+        allow update: if isAuth() && (isManager() || isSystemAdmin());
+        allow delete: if isAuth() && (isManager() || isSystemAdmin());
+      }
+
+      // ─── MONTH SUMMARIES subcollection ─────────────────────────────────────
+      match /monthSummaries/{monthKey} {
+        allow read: if isAuth() && isMemberOf(messId);
+        allow write: if isAuth() && (isManager() || isSystemAdmin());
+      }
+
+      // ─── JOIN REQUESTS subcollection ───────────────────────────────────────
+      match /joinRequests/{reqId} {
+        allow read: if isAuth() && (isMemberOf(messId) || request.auth.uid == reqId);
+        allow create: if isAuth();
+        allow update: if isAuth() && (isManager() || isSystemAdmin());
+        allow delete: if isAuth() && (isManager() || isSystemAdmin() || request.auth.uid == reqId);
+      }
+    }
+
+    // ─── SYSTEM ADMIN COLLECTIONS ────────────────────────────────────────────
+    match /admins/{adminId} {
+      allow read: if isAuth() && isSystemAdmin();
+      allow write: if isAuth() && userRole() == 'superAdmin';
+    }
+
+    match /systemLogs/{logId} {
+      allow read: if isAuth() && isSystemAdmin();
+      allow create: if isAuth();
+      allow update, delete: if isAuth() && isSystemAdmin();
+    }
+  }
+}
