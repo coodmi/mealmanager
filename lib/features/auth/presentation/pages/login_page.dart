@@ -33,6 +33,7 @@ class _LoginPageState extends State<LoginPage>
   bool _loginPasswordVisible = false;
   bool _registerPasswordVisible = false;
   String _registerPassword = '';
+  bool _agreedToTerms = false;
 
   @override
   void initState() {
@@ -55,6 +56,18 @@ class _LoginPageState extends State<LoginPage>
   // ── REGISTER: Send OTP first ──────────────────────────────────────────────
   Future<void> _handleRegister() async {
     if (!_registerFormKey.currentState!.validate()) return;
+    if (!_agreedToTerms) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Please agree to Terms & Conditions and Privacy Policy',
+          ),
+          backgroundColor: Colors.orange,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
     setState(() => _isLoading = true);
     final email = _registerEmailController.text.trim();
     final name = _registerNameController.text.trim();
@@ -445,6 +458,12 @@ class _LoginPageState extends State<LoginPage>
         role == 'contentAdmin';
     if (isAdmin) {
       context.go(AppRouter.admin);
+      return;
+    }
+    // Check profile complete — show profile setup on first login
+    final profileComplete = userData?['profileComplete'] as bool? ?? false;
+    if (!profileComplete) {
+      context.go(AppRouter.profileSetup);
       return;
     }
     final messId = userData?['messId'] as String? ?? '';
@@ -886,7 +905,68 @@ class _LoginPageState extends State<LoginPage>
               const SizedBox(height: 8),
               _PasswordStrengthBar(password: _registerPassword),
             ],
-            const SizedBox(height: 24),
+            const SizedBox(height: 16),
+            // Terms & Conditions checkbox
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Checkbox(
+                  value: _agreedToTerms,
+                  activeColor: AppColors.primaryGreen,
+                  onChanged: (v) => setState(() => _agreedToTerms = v ?? false),
+                ),
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () =>
+                        setState(() => _agreedToTerms = !_agreedToTerms),
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 12),
+                      child: RichText(
+                        text: TextSpan(
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.grey.shade700,
+                          ),
+                          children: [
+                            const TextSpan(text: 'I agree to '),
+                            WidgetSpan(
+                              child: GestureDetector(
+                                onTap: () {},
+                                child: const Text(
+                                  'Terms & Conditions',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: AppColors.primaryGreen,
+                                    fontWeight: FontWeight.w600,
+                                    decoration: TextDecoration.underline,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const TextSpan(text: ' and '),
+                            WidgetSpan(
+                              child: GestureDetector(
+                                onTap: () {},
+                                child: const Text(
+                                  'Privacy Policy',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: AppColors.primaryGreen,
+                                    fontWeight: FontWeight.w600,
+                                    decoration: TextDecoration.underline,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
             SizedBox(
               width: double.infinity,
               height: 56,

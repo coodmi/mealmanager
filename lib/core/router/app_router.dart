@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../features/auth/presentation/pages/login_page.dart';
 import '../../features/auth/presentation/pages/otp_verification_page.dart';
+import '../../features/auth/presentation/pages/profile_setup_page.dart';
 import '../../features/mess/presentation/pages/create_join_mess_page.dart';
 import '../../features/mess/presentation/pages/pending_approval_page.dart';
 import '../../features/dashboard/presentation/pages/dashboard_page.dart';
@@ -18,7 +19,7 @@ class AppRouter {
   static const String createJoinMess = '/create-join-mess';
   static const String pendingApproval = '/pending-approval';
   static const String dashboard = '/dashboard';
-  static const String setup = '/setup';
+  static const String profileSetup = '/profile-setup';
   static const String admin = '/admin';
   static const String messSettings = '/mess-settings';
 
@@ -68,7 +69,11 @@ class AppRouter {
         path: dashboard,
         builder: (context, state) => const DashboardPage(),
       ),
-      GoRoute(path: setup, builder: (context, state) => const SetupPage()),
+      GoRoute(path: '/setup', builder: (context, state) => const SetupPage()),
+      GoRoute(
+        path: profileSetup,
+        builder: (context, state) => const ProfileSetupPage(),
+      ),
       GoRoute(
         path: messSettings,
         builder: (context, state) => const MessSettingsPage(),
