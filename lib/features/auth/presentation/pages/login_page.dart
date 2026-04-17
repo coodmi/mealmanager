@@ -972,10 +972,17 @@ class _LoginPageState extends State<LoginPage>
     child: OutlinedButton.icon(
       onPressed: _isLoading ? null : _handleGoogleLogin,
       icon: Image.network(
-        'https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg',
+        'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Google_%22G%22_logo.svg/768px-Google_%22G%22_logo.svg.png',
         width: 22,
         height: 22,
-        errorBuilder: (_, __, ___) => const Icon(Icons.g_mobiledata, size: 22),
+        errorBuilder: (_, __, ___) => const Text(
+          'G',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFF4285F4),
+          ),
+        ),
       ),
       label: Text(
         label,
