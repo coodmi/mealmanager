@@ -100,6 +100,19 @@ class FirebaseAuthService {
         return {'success': false, 'message': 'Wrong ID/Password entered'};
       }
 
+      // Block login if email not verified
+      if (!user.emailVerified) {
+        // Resend verification email
+        await user.sendEmailVerification();
+        await _auth.signOut();
+        return {
+          'success': false,
+          'message':
+              'Please verify your email first. A new verification link has been sent.',
+          'needsVerification': true,
+        };
+      }
+
       return {
         'success': true,
         'message': 'Login successful',

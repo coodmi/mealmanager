@@ -57,7 +57,6 @@ class _LoginPageState extends State<LoginPage>
     setState(() => _isLoading = true);
 
     try {
-      // Direct registration — no OTP
       final result = await FirebaseAuthService.registerUser(
         name: _registerNameController.text.trim(),
         mobile: _registerMobileController.text.trim(),
@@ -69,17 +68,8 @@ class _LoginPageState extends State<LoginPage>
       if (!mounted) return;
 
       if (result['success'] == true) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Account created! Please login.'),
-            backgroundColor: Colors.green,
-          ),
-        );
-        _tabController.animateTo(0);
-        _registerNameController.clear();
-        _registerMobileController.clear();
-        _registerEmailController.clear();
-        _registerPasswordController.clear();
+        // Show email verification dialog
+        _showEmailVerificationDialog(_registerEmailController.text.trim());
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -98,6 +88,194 @@ class _LoginPageState extends State<LoginPage>
         ),
       );
     }
+  }
+
+  void _showEmailVerificationDialog(String email) {
+    bool isChecking = false;
+    bool isResending = false;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setS) => AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          contentPadding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
+          actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 72,
+                height: 72,
+                decoration: BoxDecoration(
+                  color: AppColors.primaryGreen.withValues(alpha: 0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.mark_email_unread_rounded,
+                  color: AppColors.primaryGreen,
+                  size: 36,
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Verify Your Email',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'We sent a verification link to:',
+                style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: AppColors.primaryGreen.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  email,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.primaryGreen,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+              Text(
+                'Click the link in the email to verify your account, then tap "I\'ve Verified" below.',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Colors.grey.shade600,
+                  height: 1.5,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Check your spam/junk folder if you don\'t see it.',
+                style: TextStyle(fontSize: 12, color: Colors.orange.shade700),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
+          actions: [
+            // Resend button
+            TextButton.icon(
+              onPressed: isResending
+                  ? null
+                  : () async {
+                      setS(() => isResending = true);
+                      try {
+                        final user = FirebaseAuth.instance.currentUser;
+                        await user?.sendEmailVerification();
+                        setS(() => isResending = false);
+                        if (ctx.mounted) {
+                          ScaffoldMessenger.of(ctx).showSnackBar(
+                            const SnackBar(
+                              content: Text('Verification email resent!'),
+                              backgroundColor: Colors.green,
+                              behavior: SnackBarBehavior.floating,
+                            ),
+                          );
+                        }
+                      } catch (_) {
+                        setS(() => isResending = false);
+                      }
+                    },
+              icon: isResending
+                  ? const SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.refresh, size: 16),
+              label: Text(isResending ? 'Sending...' : 'Resend Email'),
+            ),
+            // Verified button
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primaryGreen,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              onPressed: isChecking
+                  ? null
+                  : () async {
+                      setS(() => isChecking = true);
+                      try {
+                        // Reload user to get latest emailVerified status
+                        final user = FirebaseAuth.instance.currentUser;
+                        await user?.reload();
+                        final refreshed = FirebaseAuth.instance.currentUser;
+
+                        if (refreshed?.emailVerified == true) {
+                          if (ctx.mounted) Navigator.pop(ctx);
+                          if (mounted) {
+                            // Clear form
+                            _registerNameController.clear();
+                            _registerMobileController.clear();
+                            _registerEmailController.clear();
+                            _registerPasswordController.clear();
+                            _tabController.animateTo(0);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Email verified! You can now login.',
+                                ),
+                                backgroundColor: Colors.green,
+                                behavior: SnackBarBehavior.floating,
+                              ),
+                            );
+                          }
+                        } else {
+                          setS(() => isChecking = false);
+                          if (ctx.mounted) {
+                            ScaffoldMessenger.of(ctx).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Email not verified yet. Please click the link in your email.',
+                                ),
+                                backgroundColor: Colors.orange,
+                                behavior: SnackBarBehavior.floating,
+                                duration: Duration(seconds: 4),
+                              ),
+                            );
+                          }
+                        }
+                      } catch (_) {
+                        setS(() => isChecking = false);
+                      }
+                    },
+              child: isChecking
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 2,
+                      ),
+                    )
+                  : const Text(
+                      "I've Verified",
+                      style: TextStyle(color: Colors.white),
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -305,12 +483,17 @@ class _LoginPageState extends State<LoginPage>
           context.go(AppRouter.createJoinMess);
         }
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(result['message']),
-            backgroundColor: Colors.red,
-          ),
-        );
+        // Check if needs email verification
+        if (result['needsVerification'] == true) {
+          _showEmailVerificationDialog(_loginEmailController.text.trim());
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(result['message']),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
       }
     } catch (e) {
       setState(() => _isLoading = false);
