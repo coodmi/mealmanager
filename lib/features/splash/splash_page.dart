@@ -100,26 +100,35 @@ class _SplashPageState extends State<SplashPage> with TickerProviderStateMixin {
         context.go('/admin');
       } else if (joinStatus == 'pending') {
         context.go('/pending-approval');
-      } else if (messId != null && messId.toString().isNotEmpty) {
-        // Check if mess setup is complete
-        try {
-          final messDoc = await FirebaseFirestore.instance
-              .collection('messes')
-              .doc(messId.toString())
-              .get();
-          final setupComplete =
-              messDoc.data()?['setupComplete'] as bool? ?? false;
-          if (!mounted) return;
-          if (setupComplete) {
-            context.go('/dashboard');
-          } else {
-            context.go('/mess-settings');
-          }
-        } catch (_) {
-          if (mounted) context.go('/dashboard');
-        }
       } else {
-        context.go('/create-join-mess');
+        // Check profile complete
+        final profileComplete =
+            doc.data()?['profileComplete'] as bool? ?? false;
+        if (!profileComplete) {
+          context.go('/profile-setup');
+          return;
+        }
+        if (messId != null && messId.toString().isNotEmpty) {
+          // Check if mess setup is complete
+          try {
+            final messDoc = await FirebaseFirestore.instance
+                .collection('messes')
+                .doc(messId.toString())
+                .get();
+            final setupComplete =
+                messDoc.data()?['setupComplete'] as bool? ?? false;
+            if (!mounted) return;
+            if (setupComplete) {
+              context.go('/dashboard');
+            } else {
+              context.go('/mess-settings');
+            }
+          } catch (_) {
+            if (mounted) context.go('/dashboard');
+          }
+        } else {
+          context.go('/create-join-mess');
+        }
       }
     } catch (_) {
       if (mounted) context.go('/');
