@@ -956,33 +956,47 @@ class _MemberPageState extends State<MemberPage> {
                           final balance =
                               double.tryParse(balanceCtrl.text) ?? 0;
 
-                          final batch = FirebaseFirestore.instance.batch();
+                          // Get manager info
+                          final managerDoc = await FirebaseFirestore.instance
+                              .collection('users')
+                              .doc(FirebaseAuth.instance.currentUser?.uid)
+                              .get();
+                          final managerName =
+                              managerDoc.data()?['name'] as String? ??
+                              'Manager';
 
-                          final memberRef = FirebaseFirestore.instance
+                          // Get mess name
+                          final messDoc = await FirebaseFirestore.instance
                               .collection('messes')
                               .doc(_messId)
-                              .collection('members')
-                              .doc(uid);
-                          batch.set(memberRef, {
-                            'name': name,
-                            'phone': phone,
-                            'balance': balance,
-                            'isActive': true,
-                            'joinedAt': FieldValue.serverTimestamp(),
-                          });
+                              .get();
+                          final messName =
+                              messDoc.data()?['name'] as String? ?? 'Mess';
 
-                          final userRef = FirebaseFirestore.instance
+                          // Send invitation instead of direct add
+                          await FirebaseFirestore.instance
                               .collection('users')
-                              .doc(uid);
-                          batch.update(userRef, {'messId': _messId});
-
-                          await batch.commit();
+                              .doc(uid)
+                              .collection('invitations')
+                              .doc(_messId)
+                              .set({
+                                'messId': _messId,
+                                'messName': messName,
+                                'managerId':
+                                    FirebaseAuth.instance.currentUser?.uid,
+                                'managerName': managerName,
+                                'initialBalance': balance,
+                                'memberName': name,
+                                'memberPhone': phone,
+                                'status': 'pending',
+                                'sentAt': FieldValue.serverTimestamp(),
+                              });
 
                           if (mounted) {
                             Navigator.pop(ctx);
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
-                                content: Text('$name added to mess!'),
+                                content: Text('Invitation sent to $name!'),
                                 backgroundColor: Colors.green,
                                 behavior: SnackBarBehavior.floating,
                               ),

@@ -7,6 +7,7 @@ import '../../../../core/router/app_router.dart';
 import '../../../../core/services/firebase_auth_service.dart';
 import '../../../../core/services/firebase_mess_service.dart';
 import '../../../../core/theme/theme_provider.dart'; // provides themeNotifier
+import 'my_requests_page.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -399,6 +400,20 @@ class _ProfilePageState extends State<ProfilePage> {
             textColor: textColor,
             subColor: subColor,
             onTap: _showChangePasswordDialog,
+          ),
+          _divider(),
+          _actionTile(
+            icon: Icons.mail_outline_rounded,
+            label: 'My Requests',
+            subtitle: 'View mess invitations and requests',
+            color: Colors.orange,
+            cardColor: cardColor,
+            textColor: textColor,
+            subColor: subColor,
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const MyRequestsPage()),
+            ),
           ),
         ],
       ),

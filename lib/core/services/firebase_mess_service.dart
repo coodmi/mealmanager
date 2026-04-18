@@ -4,12 +4,34 @@ import 'firebase_auth_service.dart';
 
 class FirebaseMessService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  static const int maxMesses = 3;
 
-  // Generate Mess ID (MM00000 format, zero-padded 5 digits)
   static String generateMessId() {
     final random = Random();
-    final number = random.nextInt(100000); // 0–99999
+    final number = random.nextInt(100000);
     return 'MM${number.toString().padLeft(5, '0')}';
+  }
+
+  // Get all joined mess IDs for current user
+  static Future<List<String>> getJoinedMessIds() async {
+    try {
+      final userData = await FirebaseAuthService.getUserData();
+      if (userData == null) return [];
+      // Support both old single messId and new messIds array
+      final messIds = userData['messIds'];
+      if (messIds is List) return List<String>.from(messIds);
+      final messId = userData['messId'] as String? ?? '';
+      if (messId.isNotEmpty) return [messId];
+      return [];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  // Get mess ID (primary — first in list)
+  static Future<String> getMessId() async {
+    final ids = await getJoinedMessIds();
+    return ids.isNotEmpty ? ids.first : '';
   }
 
   // Create new mess
@@ -20,13 +42,20 @@ class FirebaseMessService {
   }) async {
     try {
       final userId = FirebaseAuthService.getUserId();
-      if (userId == null) {
+      if (userId == null)
         return {'success': false, 'message': 'User not logged in'};
+
+      // Check max limit
+      final joined = await getJoinedMessIds();
+      if (joined.length >= maxMesses) {
+        return {
+          'success': false,
+          'message':
+              'You can join a maximum of $maxMesses messes at a time. Please leave a mess first.',
+        };
       }
 
       final messId = generateMessId();
-
-      // Create mess document
       await _firestore.collection('messes').doc(messId).set({
         'name': messName,
         'address': address,
@@ -39,9 +68,11 @@ class FirebaseMessService {
         'createdAt': FieldValue.serverTimestamp(),
       });
 
-      // Update user's messId
+      // Add to messIds array
+      final newIds = [...joined, messId];
       await FirebaseAuthService.updateUserData({
-        'messId': messId,
+        'messIds': newIds,
+        'messId': messId, // keep for backward compat
         'role': 'manager',
       });
 
@@ -55,15 +86,28 @@ class FirebaseMessService {
     }
   }
 
-  // Join existing mess — creates a pending request
+  // Join existing mess
   static Future<Map<String, dynamic>> joinMess({required String messId}) async {
     try {
       final userId = FirebaseAuthService.getUserId();
-      if (userId == null) {
+      if (userId == null)
         return {'success': false, 'message': 'User not logged in'};
+
+      // Check max limit
+      final joined = await getJoinedMessIds();
+      if (joined.length >= maxMesses) {
+        return {
+          'success': false,
+          'message':
+              'You can join a maximum of $maxMesses messes at a time. Please leave a mess first.',
+        };
       }
 
-      // Check if mess exists
+      // Already in this mess?
+      if (joined.contains(messId)) {
+        return {'success': false, 'message': 'You are already in this mess.'};
+      }
+
       final messDoc = await _firestore.collection('messes').doc(messId).get();
       if (!messDoc.exists) {
         return {
@@ -72,14 +116,13 @@ class FirebaseMessService {
         };
       }
 
-      // Get user data for the request
       final userDoc = await _firestore.collection('users').doc(userId).get();
       final userData = userDoc.data() ?? {};
       final name = userData['name'] as String? ?? 'Unknown';
-      final phone = userData['phone'] as String? ?? '';
+      final phone =
+          userData['mobile'] as String? ?? userData['phone'] as String? ?? '';
       final email = userData['email'] as String? ?? '';
 
-      // Create a join request (pending)
       await _firestore
           .collection('messes')
           .doc(messId)
@@ -94,8 +137,10 @@ class FirebaseMessService {
             'requestedAt': FieldValue.serverTimestamp(),
           });
 
-      // Update user's messId and status as pending
+      // Add to messIds array
+      final newIds = [...joined, messId];
       await FirebaseAuthService.updateUserData({
+        'messIds': newIds,
         'messId': messId,
         'role': 'member',
         'joinStatus': 'pending',
@@ -110,130 +155,99 @@ class FirebaseMessService {
     }
   }
 
-  // Get mess data
-  static Future<Map<String, dynamic>?> getMessData() async {
-    try {
-      final userData = await FirebaseAuthService.getUserData();
-      if (userData == null) return null;
-
-      final messId = userData['messId'];
-      if (messId == null) return null;
-
-      final messDoc = await _firestore.collection('messes').doc(messId).get();
-      if (!messDoc.exists) return null;
-
-      return messDoc.data();
-    } catch (e) {
-      return null;
-    }
-  }
-
-  // Get mess name
-  static Future<String> getMessName() async {
-    try {
-      final messData = await getMessData();
-      return messData?['name'] ?? 'Test Mess';
-    } catch (e) {
-      return 'Test Mess';
-    }
-  }
-
-  // Get mess ID
-  static Future<String> getMessId() async {
-    try {
-      final userData = await FirebaseAuthService.getUserData();
-      final messId = userData?['messId'] ?? '';
-      return messId;
-    } catch (e) {
-      return '';
-    }
-  }
-
-  // Check if user is manager
-  static Future<bool> isManager() async {
-    try {
-      final userData = await FirebaseAuthService.getUserData();
-      return userData?['role'] == 'manager';
-    } catch (e) {
-      return false;
-    }
-  }
-
-  // Get mess members
-  static Future<List<Map<String, dynamic>>> getMessMembers() async {
-    try {
-      final messData = await getMessData();
-      if (messData == null) return [];
-
-      final memberIds = List<String>.from(messData['members'] ?? []);
-      final members = <Map<String, dynamic>>[];
-
-      for (final memberId in memberIds) {
-        final userDoc = await _firestore
-            .collection('users')
-            .doc(memberId)
-            .get();
-        if (userDoc.exists) {
-          final userData = userDoc.data()!;
-          userData['id'] = memberId;
-          members.add(userData);
-        }
-      }
-
-      return members;
-    } catch (e) {
-      return [];
-    }
-  }
-
-  // Stream mess data (real-time updates)
-  static Stream<DocumentSnapshot>? getMessStream() {
+  // Leave a specific mess
+  static Future<Map<String, dynamic>> leaveMessById(String messId) async {
     try {
       final userId = FirebaseAuthService.getUserId();
-      if (userId == null) return null;
-
-      return _firestore.collection('users').doc(userId).snapshots().asyncMap((
-        userDoc,
-      ) async {
-        final messId = userDoc.data()?['messId'];
-        if (messId == null) return userDoc;
-
-        return await _firestore.collection('messes').doc(messId).get();
-      });
-    } catch (e) {
-      return null;
-    }
-  }
-
-  // Leave mess
-  static Future<Map<String, dynamic>> leaveMess() async {
-    try {
-      final userId = FirebaseAuthService.getUserId();
-      if (userId == null) {
+      if (userId == null)
         return {'success': false, 'message': 'User not logged in'};
-      }
 
-      final userData = await FirebaseAuthService.getUserData();
-      final messId = userData?['messId'];
+      // Remove from mess members subcollection
+      await _firestore
+          .collection('messes')
+          .doc(messId)
+          .collection('members')
+          .doc(userId)
+          .delete();
 
-      if (messId == null) {
-        return {'success': false, 'message': 'Not in any mess'};
-      }
-
-      // Remove user from mess members
+      // Remove from mess members array
       await _firestore.collection('messes').doc(messId).update({
         'members': FieldValue.arrayRemove([userId]),
       });
 
-      // Clear user's messId
+      // Remove from user's messIds
+      final joined = await getJoinedMessIds();
+      final newIds = joined.where((id) => id != messId).toList();
       await FirebaseAuthService.updateUserData({
-        'messId': null,
-        'role': 'member',
+        'messIds': newIds,
+        'messId': newIds.isNotEmpty ? newIds.first : '',
       });
 
       return {'success': true, 'message': 'Left mess successfully'};
     } catch (e) {
       return {'success': false, 'message': 'Failed to leave mess: $e'};
     }
+  }
+
+  // Get mess data by ID
+  static Future<Map<String, dynamic>?> getMessDataById(String messId) async {
+    try {
+      final doc = await _firestore.collection('messes').doc(messId).get();
+      if (!doc.exists) return null;
+      return {...doc.data()!, 'id': doc.id};
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // Get mess data (primary mess)
+  static Future<Map<String, dynamic>?> getMessData() async {
+    try {
+      final messId = await getMessId();
+      if (messId.isEmpty) return null;
+      return getMessDataById(messId);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static Future<String> getMessName() async {
+    try {
+      final messData = await getMessData();
+      return messData?['name'] ?? '';
+    } catch (_) {
+      return '';
+    }
+  }
+
+  static Future<bool> isManager() async {
+    try {
+      final userData = await FirebaseAuthService.getUserData();
+      return userData?['role'] == 'manager';
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static Future<List<Map<String, dynamic>>> getMessMembers() async {
+    try {
+      final messId = await getMessId();
+      if (messId.isEmpty) return [];
+      final snap = await _firestore
+          .collection('messes')
+          .doc(messId)
+          .collection('members')
+          .get();
+      return snap.docs.map((d) => {...d.data(), 'id': d.id}).toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  // Legacy leave mess (leaves primary mess)
+  static Future<Map<String, dynamic>> leaveMess() async {
+    final messId = await getMessId();
+    if (messId.isEmpty) return {'success': false, 'message': 'Not in any mess'};
+    return leaveMessById(messId);
   }
 }
