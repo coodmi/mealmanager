@@ -3,23 +3,15 @@ import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:go_router/go_router.dart';
+import 'package:share_plus/share_plus.dart';
 import '../../../../core/constants/app_colors.dart';
-import '../../../../core/utils/permission_utils.dart';
-import '../../../expense/presentation/pages/expense_entry_page.dart';
-import '../../../withdraw/presentation/pages/withdraw_request_page.dart';
-import '../../../reports/presentation/pages/reports_pdf_page.dart';
-import '../../../member/presentation/pages/member_page.dart';
-import '../../../deposit/presentation/pages/deposit_page.dart';
-import 'subscription_page.dart';
 import 'user_guide_page.dart';
 import 'suggestion_page.dart';
 import 'contact_us_page.dart';
 import 'about_app_page.dart';
 import 'donation_page.dart';
-import 'mess_settings_page.dart';
+import 'conditions_policies_page.dart';
 import 'mess_requests_page.dart';
-import 'terms_page.dart';
-import 'privacy_page.dart';
 
 class MenuPage extends StatefulWidget {
   const MenuPage({super.key});
@@ -30,7 +22,17 @@ class MenuPage extends StatefulWidget {
 
 class _MenuPageState extends State<MenuPage> {
   String _messId = '';
-  bool _isManager = false;
+  String _role = 'member';
+
+  static const _adminRoles = [
+    'superAdmin',
+    'systemAdmin',
+    'supportAdmin',
+    'contentAdmin',
+  ];
+
+  bool get _isAdmin => _adminRoles.contains(_role);
+  bool get _isManager => _role == 'manager';
 
   @override
   void initState() {
@@ -46,10 +48,9 @@ class _MenuPageState extends State<MenuPage> {
         .doc(user.uid)
         .get();
     if (mounted) {
-      final role = doc.data()?['role'] as String? ?? 'member';
       setState(() {
         _messId = doc.data()?['messId'] as String? ?? '';
-        _isManager = role == 'manager' || role == 'admin';
+        _role = doc.data()?['role'] as String? ?? 'member';
       });
     }
   }
@@ -81,83 +82,22 @@ class _MenuPageState extends State<MenuPage> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          if (_isManager)
-            _item(
-              context,
-              '🛡️  Admin Panel',
-              Icons.admin_panel_settings_rounded,
-              Colors.deepPurple,
-              () => context.push('/admin'),
-            ),
-          if (!_isManager)
-            _item(
-              context,
-              '🛡️  Admin Panel',
-              Icons.admin_panel_settings_rounded,
-              Colors.deepPurple,
-              () => showNoPermissionSnack(context),
-            ),
-          if (_isManager) const SizedBox(height: 14),
-          _section('Mess Management', [
-            _item(
-              context,
-              'Subscription',
-              Icons.workspace_premium,
-              Colors.amber.shade700,
-              () => _go(context, const SubscriptionPage()),
-            ),
-            _item(
-              context,
-              'Mess Settings',
-              Icons.settings,
-              AppColors.primaryGreen,
-              () => _go(context, const MessSettingsPage()),
-            ),
-            _item(
-              context,
-              'Members',
-              Icons.people,
-              Colors.blue,
-              () => _go(context, const MemberPage()),
-            ),
-            if (_isManager && _messId.isNotEmpty) _requestsItem(context),
-          ]),
-          const SizedBox(height: 14),
-          _section('Transactions', [
-            _item(
-              context,
-              'Deposit Money',
-              Icons.add_circle,
-              Colors.green,
-              () => _go(context, const DepositPage()),
-            ),
-            _item(
-              context,
-              'Add Expense',
-              Icons.remove_circle,
-              Colors.red,
-              () => _go(context, const ExpenseEntryPage()),
-            ),
-            _item(
-              context,
-              'Withdraw Request',
-              Icons.account_balance_wallet,
-              Colors.purple,
-              () => _go(context, const WithdrawRequestPage()),
-            ),
-          ]),
-          const SizedBox(height: 14),
-          _section('Reports', [
-            _item(
-              context,
-              'Generate Reports & PDF',
-              Icons.assessment,
-              Colors.deepPurple,
-              () => _go(context, const ReportsPdfPage()),
-            ),
-          ]),
-          const SizedBox(height: 14),
-          _section('Help & Support', [
+          // Admin Panel — only visible to admins, not manager/member
+          if (_isAdmin) ...[
+            _section('Admin', [
+              _item(
+                context,
+                '🛡️  Admin Panel',
+                Icons.admin_panel_settings_rounded,
+                Colors.deepPurple,
+                () => context.push('/admin'),
+              ),
+            ]),
+            const SizedBox(height: 14),
+          ],
+
+          // Help & Info section
+          _section('Help & Info', [
             _item(
               context,
               'App User Guide',
@@ -188,34 +128,29 @@ class _MenuPageState extends State<MenuPage> {
             ),
             _item(
               context,
+              'Conditions & Policies',
+              Icons.gavel_rounded,
+              Colors.indigo,
+              () => _go(context, const ConditionsPoliciesPage()),
+            ),
+            _item(
+              context,
               'About App',
               Icons.info_outline,
               Colors.grey,
               () => _go(context, const AboutAppPage()),
             ),
-            _item(
-              context,
-              'Terms & Conditions',
-              Icons.gavel,
-              Colors.indigo,
-              () => _go(context, const TermsPage()),
-            ),
-            _item(
-              context,
-              'Privacy Policy',
-              Icons.privacy_tip_outlined,
-              Colors.teal,
-              () => _go(context, const PrivacyPage()),
-            ),
+            if (_isManager && _messId.isNotEmpty) _requestsItem(context),
           ]),
           const SizedBox(height: 14),
-          // Donation + Share row
+
+          // Show Your Love + Share App
           Row(
             children: [
               Expanded(
                 child: _bigBtn(
                   context,
-                  '❤️',
+                  Icons.favorite_rounded,
                   'Show Your Love',
                   const Color(0xFFE91E63),
                   () => _go(context, const DonationPage()),
@@ -225,7 +160,7 @@ class _MenuPageState extends State<MenuPage> {
               Expanded(
                 child: _bigBtn(
                   context,
-                  '📤',
+                  Icons.share_rounded,
                   'Share App',
                   Colors.blue.shade600,
                   () => _shareApp(context),
@@ -233,6 +168,10 @@ class _MenuPageState extends State<MenuPage> {
               ),
             ],
           ),
+          const SizedBox(height: 24),
+
+          // Follow Us
+          _section('Follow Us', [_followRow(context)]),
           const SizedBox(height: 24),
         ],
       ),
@@ -387,7 +326,7 @@ class _MenuPageState extends State<MenuPage> {
 
   Widget _bigBtn(
     BuildContext context,
-    String emoji,
+    IconData icon,
     String label,
     Color color,
     VoidCallback onTap,
@@ -413,14 +352,98 @@ class _MenuPageState extends State<MenuPage> {
         ),
         child: Column(
           children: [
-            Text(emoji, style: const TextStyle(fontSize: 28)),
-            const SizedBox(height: 6),
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.25),
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white54, width: 1.5),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.15),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Icon(icon, color: Colors.white, size: 26),
+            ),
+            const SizedBox(height: 8),
             Text(
               label,
               style: const TextStyle(
                 color: Colors.white,
                 fontWeight: FontWeight.bold,
                 fontSize: 13,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _followRow(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(12),
+      child: Row(
+        children: [
+          Expanded(
+            child: _followBtn(
+              'Facebook',
+              Icons.facebook,
+              Colors.blue.shade700,
+              () {},
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: _followBtn(
+              'LinkedIn',
+              Icons.link_rounded,
+              Colors.blue.shade900,
+              () {},
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: _followBtn(
+              'YouTube',
+              Icons.play_circle_fill_rounded,
+              Colors.red,
+              () {},
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _followBtn(
+    String label,
+    IconData icon,
+    Color color,
+    VoidCallback onTap,
+  ) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: color.withValues(alpha: 0.2)),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, color: color, size: 24),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 11,
+                color: color,
+                fontWeight: FontWeight.w600,
               ),
             ),
           ],
@@ -475,14 +498,12 @@ class _MenuPageState extends State<MenuPage> {
 
   void _shareApp(BuildContext context) {
     const text =
-        '🍽️ Manage your mess smartly with Meal Manager!\n\nTrack meals, expenses, deposits and generate reports easily.\n\n📱 Download now:\nPlay Store: https://play.google.com/store\niOS: https://apps.apple.com\n\n#MealManager #MessManagement';
-    Clipboard.setData(const ClipboardData(text: text));
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Share text copied to clipboard!'),
-        backgroundColor: AppColors.primaryGreen,
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+        '🍽️ Manage your mess smartly with Meal Manager!\n\n'
+        'Track meals, expenses, deposits and generate reports easily.\n\n'
+        '📱 Download now:\n'
+        'Play Store: https://play.google.com/store\n'
+        'iOS: https://apps.apple.com\n\n'
+        '#MealManager #MessManagement';
+    Share.share(text, subject: 'Meal Manager App');
   }
 }
