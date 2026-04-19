@@ -885,21 +885,21 @@ class _DashboardPageState extends State<DashboardPage> {
             children: [
               Expanded(
                 child: _buildOverviewCard(
-                  'Meal Rate',
-                  '৳ ${_mealRate.toStringAsFixed(1)}',
-                  Icons.restaurant,
-                  Colors.grey.shade600,
-                  const Color(0xFFF5F5F5),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _buildOverviewCard(
                   'Meals',
                   '${_selectedTab == 'My' ? _myMeals : _messMeals}',
                   Icons.fastfood,
                   Colors.orange,
                   const Color(0xFFFFF3E0),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildOverviewCard(
+                  'Meal Rate',
+                  '৳ ${_mealRate.toStringAsFixed(2)}',
+                  Icons.restaurant,
+                  Colors.grey.shade600,
+                  const Color(0xFFF5F5F5),
                 ),
               ),
             ],
