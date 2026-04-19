@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:async';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/services/deletion_scheduler.dart';
 import '../../../profile/presentation/pages/profile_page.dart';
@@ -38,13 +39,16 @@ class _DashboardPageState extends State<DashboardPage> {
   double _myDeposit = 0;
   double _myExpense = 0;
   double _messDeposit = 0;
-  double _messExpense = 0;
+  double _messExpense = 0; // Bazar only (for meal rate)
   double _mealRate = 0;
   int _myMeals = 0;
   int _messMeals = 0;
 
   bool _invitationChecked = false;
   DateTime? _lastBackPressTime;
+
+  // Real-time stream subscriptions
+  final List<StreamSubscription<dynamic>> _subs = [];
 
   @override
   void initState() {
@@ -53,8 +57,16 @@ class _DashboardPageState extends State<DashboardPage> {
     _currentMonth = '${_monthName(now.month)} ${now.year}';
     // ignore: unawaited_futures
     DeletionScheduler.runIfNeeded();
-    _loadDashboardData();
+    _initRealtimeDashboard();
     _checkPendingInvitations();
+  }
+
+  @override
+  void dispose() {
+    for (final s in _subs) {
+      s.cancel();
+    }
+    super.dispose();
   }
 
   Future<void> _checkPendingInvitations() async {
@@ -329,15 +341,13 @@ class _DashboardPageState extends State<DashboardPage> {
     });
   }
 
-  Future<void> _loadDashboardData() async {
+  Future<void> _initRealtimeDashboard() async {
     try {
       User? user = FirebaseAuth.instance.currentUser;
-      if (user == null) {
-        user = await FirebaseAuth.instance.authStateChanges().first.timeout(
-          const Duration(seconds: 10),
-          onTimeout: () => null,
-        );
-      }
+      user ??= await FirebaseAuth.instance.authStateChanges().first.timeout(
+        const Duration(seconds: 10),
+        onTimeout: () => null,
+      );
       if (user == null) return;
 
       final userDoc = await FirebaseFirestore.instance
@@ -347,107 +357,158 @@ class _DashboardPageState extends State<DashboardPage> {
       final messId = userDoc.data()?['messId'] as String? ?? '';
       if (messId.isEmpty) return;
 
+      final uid = user.uid;
+      final now = DateTime.now();
+      final monthKey = '${now.year}-${now.month.toString().padLeft(2, '0')}';
+
+      // ── Mess info (one-time) ──────────────────────────────────────────────
       final messDoc = await FirebaseFirestore.instance
           .collection('messes')
           .doc(messId)
           .get();
-      final messData = messDoc.data() ?? {};
-
-      // Current month key e.g. "2026-03"
-      final now = DateTime.now();
-      final monthKey = '${now.year}-${now.month.toString().padLeft(2, '0')}';
-
-      // My balance from messes/{messId}/members/{uid}
-      final memberDoc = await FirebaseFirestore.instance
-          .collection('messes')
-          .doc(messId)
-          .collection('members')
-          .doc(user.uid)
-          .get();
-      final myBal = (memberDoc.data()?['balance'] as num?)?.toDouble() ?? 0;
-
-      // Mess balance = sum of all members' balances
-      double messBal = 0;
-      final allMembersSnap = await FirebaseFirestore.instance
-          .collection('messes')
-          .doc(messId)
-          .collection('members')
-          .get();
-      for (final m in allMembersSnap.docs) {
-        messBal += (m.data()['balance'] as num?)?.toDouble() ?? 0;
-      }
-
-      double myDep = 0, messDep = 0;
-      double myExp = 0, messExp = 0;
-      int myMeals = 0, messMeals = 0;
-      double mealRate = 0;
-
-      // Deposits: from messes/{messId}/transactions where type=='deposit'
-      // Filter by month from createdAt in-memory (avoid composite index)
-      final txSnap = await FirebaseFirestore.instance
-          .collection('messes')
-          .doc(messId)
-          .collection('transactions')
-          .where('type', isEqualTo: 'deposit')
-          .get();
-      for (final d in txSnap.docs) {
-        final data = d.data();
-        final createdAt = data['createdAt'];
-        if (createdAt != null) {
-          final dt = (createdAt as Timestamp).toDate();
-          final docMonth = '${dt.year}-${dt.month.toString().padLeft(2, '0')}';
-          if (docMonth != monthKey) continue;
-        }
-        final amt = (data['amount'] as num?)?.toDouble() ?? 0;
-        messDep += amt;
-        if (data['memberId'] == user.uid) myDep += amt;
-      }
-
-      // Expenses: from messes/{messId}/expenses with monthKey
-      final expSnap = await FirebaseFirestore.instance
-          .collection('messes')
-          .doc(messId)
-          .collection('expenses')
-          .where('monthKey', isEqualTo: monthKey)
-          .get();
-      for (final d in expSnap.docs) {
-        final amt = (d.data()['amount'] as num?)?.toDouble() ?? 0;
-        messExp += amt;
-        if (d.data()['submittedBy'] == user.uid) myExp += amt;
-      }
-
-      // Meals: from messes/{messId}/meals with monthKey
-      final mealSnap = await FirebaseFirestore.instance
-          .collection('messes')
-          .doc(messId)
-          .collection('meals')
-          .where('monthKey', isEqualTo: monthKey)
-          .get();
-      for (final d in mealSnap.docs) {
-        final count = (d.data()['count'] as num?)?.toDouble() ?? 1.0;
-        messMeals += count.toInt();
-        if (d.data()['memberId'] == user.uid) myMeals += count.toInt();
-      }
-
-      // Meal rate = total expense / total meals
-      if (messMeals > 0) mealRate = messExp / messMeals;
-
       if (mounted) {
         setState(() {
-          _messName = messData['name'] as String? ?? '';
-          _plan = messData['subscription'] as String? ?? 'free';
-          _myBalance = myBal;
-          _messBalance = messBal;
-          _myDeposit = myDep;
-          _myExpense = myExp;
-          _messDeposit = messDep;
-          _messExpense = messExp;
-          _mealRate = mealRate;
-          _myMeals = myMeals;
-          _messMeals = messMeals;
+          _messName = messDoc.data()?['name'] as String? ?? '';
+          _plan = messDoc.data()?['subscription'] as String? ?? 'free';
         });
       }
+
+      // ── My balance (real-time) ────────────────────────────────────────────
+      _subs.add(
+        FirebaseFirestore.instance
+            .collection('messes')
+            .doc(messId)
+            .collection('members')
+            .doc(uid)
+            .snapshots()
+            .listen((snap) {
+              if (!mounted) return;
+              setState(() {
+                _myBalance = (snap.data()?['balance'] as num?)?.toDouble() ?? 0;
+              });
+            }),
+      );
+
+      // ── Mess balance = sum of all active members' balances (real-time) ────
+      _subs.add(
+        FirebaseFirestore.instance
+            .collection('messes')
+            .doc(messId)
+            .collection('members')
+            .snapshots()
+            .listen((snap) {
+              if (!mounted) return;
+              double messBal = 0;
+              for (final m in snap.docs) {
+                messBal += (m.data()['balance'] as num?)?.toDouble() ?? 0;
+              }
+              setState(() => _messBalance = messBal);
+            }),
+      );
+
+      // ── Deposits (real-time) ──────────────────────────────────────────────
+      _subs.add(
+        FirebaseFirestore.instance
+            .collection('messes')
+            .doc(messId)
+            .collection('transactions')
+            .where('type', isEqualTo: 'deposit')
+            .snapshots()
+            .listen((snap) {
+              if (!mounted) return;
+              double myDep = 0, messDep = 0;
+              for (final doc in snap.docs) {
+                final d = doc.data();
+                final ts = d['createdAt'] as Timestamp?;
+                if (ts != null) {
+                  final dt = ts.toDate();
+                  final key =
+                      '${dt.year}-${dt.month.toString().padLeft(2, '0')}';
+                  if (key != monthKey) continue;
+                }
+                final amt = (d['amount'] as num?)?.toDouble() ?? 0;
+                messDep += amt;
+                if (d['memberId'] == uid) myDep += amt;
+              }
+              setState(() {
+                _myDeposit = myDep;
+                _messDeposit = messDep;
+              });
+            }),
+      );
+
+      // ── Expenses (real-time) — Bazar only for meal rate ───────────────────
+      _subs.add(
+        FirebaseFirestore.instance
+            .collection('messes')
+            .doc(messId)
+            .collection('expenses')
+            .where('monthKey', isEqualTo: monthKey)
+            .snapshots()
+            .listen((snap) {
+              if (!mounted) return;
+              double myExp = 0, bazarExp = 0;
+              for (final doc in snap.docs) {
+                final d = doc.data();
+                final amt = (d['amount'] as num?)?.toDouble() ?? 0;
+                final cat = (d['category'] as String? ?? '').toLowerCase();
+                // Only Bazar expenses count toward meal rate
+                if (cat.contains('bazar') || cat.contains('daily')) {
+                  bazarExp += amt;
+                }
+                if (d['submittedBy'] == uid) myExp += amt;
+              }
+              setState(() {
+                _myExpense = myExp;
+                _messExpense = bazarExp; // only bazar for meal rate
+              });
+              _recalcMealRate();
+            }),
+      );
+
+      // ── Meals (real-time) ─────────────────────────────────────────────────
+      _subs.add(
+        FirebaseFirestore.instance
+            .collection('messes')
+            .doc(messId)
+            .collection('meals')
+            .where('monthKey', isEqualTo: monthKey)
+            .snapshots()
+            .listen((snap) {
+              if (!mounted) return;
+              int myMeals = 0, messMeals = 0;
+              for (final doc in snap.docs) {
+                final d = doc.data();
+                final count = (d['count'] as num?)?.toInt() ?? 1;
+                messMeals += count;
+                if (d['memberId'] == uid) myMeals += count;
+              }
+              setState(() {
+                _myMeals = myMeals;
+                _messMeals = messMeals;
+              });
+              _recalcMealRate();
+            }),
+      );
     } catch (_) {}
+  }
+
+  void _recalcMealRate() {
+    if (_messMeals > 0) {
+      setState(() => _mealRate = _messExpense / _messMeals);
+    } else {
+      setState(() => _mealRate = 0);
+    }
+  }
+
+  // Keep for compatibility (called from invitation accept)
+  Future<void> _loadDashboardData() async {
+    // Cancel existing subs and reinitialize
+    for (final s in _subs) {
+      s.cancel();
+    }
+    _subs.clear();
+    await _initRealtimeDashboard();
   }
 
   Future<bool> _onWillPop() async {
