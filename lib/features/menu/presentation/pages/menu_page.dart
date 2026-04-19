@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:go_router/go_router.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../../core/constants/app_colors.dart';
 import 'user_guide_page.dart';
 import 'suggestion_page.dart';
@@ -393,30 +393,37 @@ class _MenuPageState extends State<MenuPage> {
               'Facebook',
               Icons.facebook,
               Colors.blue.shade700,
-              () {},
+              () => _launchUrl('https://www.facebook.com'),
             ),
           ),
           const SizedBox(width: 8),
           Expanded(
             child: _followBtn(
-              'LinkedIn',
-              Icons.link_rounded,
-              Colors.blue.shade900,
-              () {},
+              'Website',
+              Icons.language_rounded,
+              Colors.teal.shade700,
+              () => _launchUrl('https://mealmanager.app'),
             ),
           ),
           const SizedBox(width: 8),
           Expanded(
             child: _followBtn(
               'YouTube',
-              Icons.play_circle_fill_rounded,
+              Icons.smart_display_rounded,
               Colors.red,
-              () {},
+              () => _launchUrl('https://www.youtube.com'),
             ),
           ),
         ],
       ),
     );
+  }
+
+  Future<void> _launchUrl(String url) async {
+    final uri = Uri.parse(url);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
   }
 
   Widget _followBtn(
