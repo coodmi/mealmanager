@@ -66,7 +66,7 @@ jobs:
           serviceCredentialsFileContent: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           groups: Test
           file: build/app/outputs/flutter-apk/app-release.apk
-          releaseNotes: "Build ${{ github.run_number }} - Data deletion/recovery policy (30-day recycle bin, Admin Recycle Bin page), Footer menu reorganized: Menu | Transaction | Home | Chat | Profile"
+          releaseNotes: Build ${{ github.run_number }}
 
   build_web:
     runs-on: ubuntu-latest
