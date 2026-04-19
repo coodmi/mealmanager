@@ -253,7 +253,11 @@ class _TermsContent extends StatelessWidget {
                 if (!p.startsWith('•'))
                   const Text(
                     '• ',
-                    style: TextStyle(fontSize: 14, color: AppColors.textDark),
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: AppColors.textDark,
+                      fontFamily: 'Roboto',
+                    ),
                   ),
                 Expanded(
                   child: Text(
@@ -261,7 +265,9 @@ class _TermsContent extends StatelessWidget {
                     style: const TextStyle(
                       fontSize: 14,
                       color: AppColors.textDark,
-                      height: 1.55,
+                      height: 1.65,
+                      fontFamily: 'Roboto',
+                      letterSpacing: 0.1,
                     ),
                   ),
                 ),
@@ -430,7 +436,11 @@ class _PrivacyContent extends StatelessWidget {
                 if (!p.startsWith('•') && !p.endsWith(':'))
                   const Text(
                     '• ',
-                    style: TextStyle(fontSize: 14, color: AppColors.textDark),
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: AppColors.textDark,
+                      fontFamily: 'Roboto',
+                    ),
                   ),
                 Expanded(
                   child: Text(
@@ -438,7 +448,9 @@ class _PrivacyContent extends StatelessWidget {
                     style: const TextStyle(
                       fontSize: 14,
                       color: AppColors.textDark,
-                      height: 1.55,
+                      height: 1.65,
+                      fontFamily: 'Roboto',
+                      letterSpacing: 0.1,
                     ),
                   ),
                 ),
