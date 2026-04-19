@@ -5,7 +5,12 @@ import '../../../../core/constants/app_colors.dart';
 class ContactUsPage extends StatelessWidget {
   const ContactUsPage({super.key});
 
-  void _launch(String url) => launchUrl(Uri.parse(url));
+  Future<void> _launch(String url) async {
+    final uri = Uri.parse(url);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -30,7 +35,7 @@ class ContactUsPage extends StatelessWidget {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            // Brand header
+            // Brand header with real logo
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(24),
@@ -44,22 +49,13 @@ class ContactUsPage extends StatelessWidget {
               ),
               child: Column(
                 children: [
-                  Container(
-                    width: 70,
-                    height: 70,
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.2),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Center(
-                      child: Text(
-                        'MM',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: Image.asset(
+                      'assets/images/logo.png',
+                      width: 80,
+                      height: 80,
+                      fit: BoxFit.cover,
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -80,11 +76,12 @@ class ContactUsPage extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 20),
+
             _contactCard(
               icon: Icons.location_on_outlined,
               color: Colors.red,
               label: 'Address',
-              value: 'Dhaka, Bangladesh',
+              value: 'Satmasjid Road, Dhanmondi, Dhaka-1205',
               onTap: null,
             ),
             _contactCard(
@@ -101,46 +98,12 @@ class ContactUsPage extends StatelessWidget {
               value: 'mealmanagerapps@gmail.com',
               onTap: () => _launch('mailto:mealmanagerapps@gmail.com'),
             ),
-            const SizedBox(height: 8),
-            const Padding(
-              padding: EdgeInsets.only(left: 4, bottom: 10),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  'Follow Us',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-                ),
-              ),
-            ),
-            Row(
-              children: [
-                Expanded(
-                  child: _socialBtn(
-                    'Facebook',
-                    Icons.facebook,
-                    Colors.blue.shade700,
-                    'https://facebook.com',
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: _socialBtn(
-                    'LinkedIn',
-                    Icons.link,
-                    Colors.blue.shade900,
-                    'https://linkedin.com',
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: _socialBtn(
-                    'YouTube',
-                    Icons.play_circle_fill,
-                    Colors.red,
-                    'https://youtube.com',
-                  ),
-                ),
-              ],
+            _contactCard(
+              icon: Icons.chat_rounded,
+              color: Colors.purple,
+              label: 'Chat',
+              value: 'Message us on Messenger',
+              onTap: () => _launch('https://m.me/mealmanagerapp'),
             ),
             const SizedBox(height: 24),
           ],
@@ -209,31 +172,4 @@ class ContactUsPage extends StatelessWidget {
       ),
     ),
   );
-
-  Widget _socialBtn(String label, IconData icon, Color color, String url) =>
-      GestureDetector(
-        onTap: () => _launch(url),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 14),
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: color.withValues(alpha: 0.2)),
-          ),
-          child: Column(
-            children: [
-              Icon(icon, color: color, size: 26),
-              const SizedBox(height: 4),
-              Text(
-                label,
-                style: TextStyle(
-                  color: color,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
 }

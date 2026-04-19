@@ -478,8 +478,9 @@ class _MenuPageState extends State<MenuPage> {
             ),
             SizedBox(height: 12),
             Text(
-              'Enjoying Meal Manager? Leave us a review!',
+              'Enjoying Meal Manager?\nLeave us a review.',
               textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 15, height: 1.5),
             ),
           ],
         ),
@@ -492,11 +493,16 @@ class _MenuPageState extends State<MenuPage> {
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.primaryGreen,
             ),
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text(
-              'Rate Now',
-              style: TextStyle(color: Colors.white),
-            ),
+            onPressed: () async {
+              Navigator.pop(ctx);
+              final uri = Uri.parse(
+                'https://play.google.com/store/apps/details?id=com.example.mealmanager',
+              );
+              if (await canLaunchUrl(uri)) {
+                await launchUrl(uri, mode: LaunchMode.externalApplication);
+              }
+            },
+            child: const Text('Next', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
