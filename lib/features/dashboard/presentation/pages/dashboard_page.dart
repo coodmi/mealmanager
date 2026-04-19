@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:go_router/go_router.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/services/deletion_scheduler.dart';
 import '../../../profile/presentation/pages/profile_page.dart';
@@ -539,10 +538,11 @@ class _DashboardPageState extends State<DashboardPage> {
 
   Widget _buildAppBar() {
     return SliverAppBar(
-      expandedHeight: 120,
+      expandedHeight: 0,
       floating: false,
       pinned: true,
       backgroundColor: AppColors.primaryGreen,
+      automaticallyImplyLeading: false,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.only(
           bottomLeft: Radius.circular(24),
@@ -564,204 +564,94 @@ class _DashboardPageState extends State<DashboardPage> {
           ),
           child: SafeArea(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.end,
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                  // Mess name + plan badge + month selector
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Row(
                           children: [
-                            Row(
-                              children: [
-                                Flexible(
-                                  child: Text(
-                                    _messName.isEmpty ? 'My Mess' : _messName,
-                                    style: const TextStyle(
-                                      fontSize: 20,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.white,
-                                    ),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
+                            Flexible(
+                              child: Text(
+                                _messName.isEmpty ? 'My Mess' : _messName,
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
                                 ),
-                                const SizedBox(width: 8),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 8,
-                                    vertical: 3,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white.withValues(alpha: 0.25),
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: Text(
-                                    _plan.toUpperCase(),
-                                    style: const TextStyle(
-                                      fontSize: 10,
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ),
-                              ],
+                                overflow: TextOverflow.ellipsis,
+                                maxLines: 1,
+                              ),
                             ),
-                            const SizedBox(height: 4),
-                            Row(
-                              children: [
-                                GestureDetector(
-                                  onTap: _switchToPreviousMonth,
-                                  child: const Icon(
-                                    Icons.chevron_left,
-                                    color: Colors.white70,
-                                    size: 18,
-                                  ),
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 7,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.25),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Text(
+                                _plan.toUpperCase(),
+                                style: const TextStyle(
+                                  fontSize: 9,
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
                                 ),
-                                const SizedBox(width: 2),
-                                Text(
-                                  _displayMonth,
-                                  style: const TextStyle(
-                                    fontSize: 13,
-                                    color: Colors.white70,
-                                  ),
-                                ),
-                                const SizedBox(width: 2),
-                                GestureDetector(
-                                  onTap: _selectedMonthKey == null
-                                      ? null
-                                      : _switchToNextMonth,
-                                  child: Icon(
-                                    Icons.chevron_right,
-                                    color: _selectedMonthKey == null
-                                        ? Colors.white30
-                                        : Colors.white70,
-                                    size: 18,
-                                  ),
-                                ),
-                              ],
+                              ),
                             ),
                           ],
                         ),
-                      ),
-                      Row(
-                        children: [
-                          IconButton(
-                            icon: const Icon(Icons.language, size: 22),
-                            color: Colors.white,
-                            onPressed: () {},
-                          ),
-                          IconButton(
-                            icon: const Icon(
-                              Icons.notifications_outlined,
-                              size: 22,
-                            ),
-                            color: Colors.white,
-                            onPressed: () {},
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.settings_outlined, size: 22),
-                            color: Colors.white,
-                            tooltip: 'Mess Settings',
-                            onPressed: () => Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => const MessSettingsPage(),
-                              ),
-                            ),
-                          ),
-                          PopupMenuButton<String>(
-                            icon: const Icon(
-                              Icons.account_circle_rounded,
-                              size: 22,
-                              color: Colors.white,
-                            ),
-                            tooltip: 'Profile',
-                            color: Colors.white,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            onSelected: (value) async {
-                              if (value == 'profile') {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => const ProfilePage(),
-                                  ),
-                                );
-                              } else if (value == 'logout') {
-                                final confirm = await showDialog<bool>(
-                                  context: context,
-                                  builder: (ctx) => AlertDialog(
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(16),
-                                    ),
-                                    title: const Text('Logout'),
-                                    content: const Text(
-                                      'Are you sure you want to logout?',
-                                    ),
-                                    actions: [
-                                      TextButton(
-                                        onPressed: () =>
-                                            Navigator.pop(ctx, false),
-                                        child: const Text('Cancel'),
-                                      ),
-                                      ElevatedButton(
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: Colors.red,
-                                        ),
-                                        onPressed: () =>
-                                            Navigator.pop(ctx, true),
-                                        child: const Text(
-                                          'Logout',
-                                          style: TextStyle(color: Colors.white),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                );
-                                if (confirm == true) {
-                                  await FirebaseAuth.instance.signOut();
-                                  if (context.mounted) {
-                                    context.go('/');
-                                  }
-                                }
-                              }
-                            },
-                            itemBuilder: (_) => [
-                              const PopupMenuItem(
-                                value: 'profile',
-                                child: Row(
-                                  children: [
-                                    Icon(
-                                      Icons.person_outline,
-                                      color: AppColors.primaryGreen,
-                                    ),
-                                    SizedBox(width: 10),
-                                    Text('Profile'),
-                                  ],
+                        const SizedBox(height: 2),
+                        // Month dropdown
+                        GestureDetector(
+                          onTap: () => _showMonthPicker(context),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                _displayMonth,
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  color: Colors.white70,
                                 ),
                               ),
-                              const PopupMenuDivider(),
-                              const PopupMenuItem(
-                                value: 'logout',
-                                child: Row(
-                                  children: [
-                                    Icon(Icons.logout, color: Colors.red),
-                                    SizedBox(width: 10),
-                                    Text(
-                                      'Logout',
-                                      style: TextStyle(color: Colors.red),
-                                    ),
-                                  ],
-                                ),
+                              const SizedBox(width: 3),
+                              const Icon(
+                                Icons.arrow_drop_down,
+                                color: Colors.white70,
+                                size: 18,
                               ),
                             ],
                           ),
-                        ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  // 2 icons: Language + Notification
+                  Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.language, size: 22),
+                        color: Colors.white,
+                        onPressed: () {},
+                        tooltip: 'Language',
+                      ),
+                      IconButton(
+                        icon: const Icon(
+                          Icons.notifications_outlined,
+                          size: 22,
+                        ),
+                        color: Colors.white,
+                        onPressed: () {},
+                        tooltip: 'Notifications',
                       ),
                     ],
                   ),
@@ -770,6 +660,73 @@ class _DashboardPageState extends State<DashboardPage> {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  void _showMonthPicker(BuildContext context) {
+    final now = DateTime.now();
+    // Build last 6 months list
+    final months = <Map<String, dynamic>>[];
+    for (int i = 0; i < 6; i++) {
+      final dt = DateTime(now.year, now.month - i);
+      final key = i == 0
+          ? null
+          : '${dt.year}-${dt.month.toString().padLeft(2, '0')}';
+      final label = '${_monthName(dt.month)} ${dt.year}';
+      months.add({'key': key, 'label': label});
+    }
+
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SizedBox(height: 12),
+          Container(
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: Colors.grey.shade300,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            'Select Month',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          ...months.map((m) {
+            final isSelected = _selectedMonthKey == m['key'];
+            return ListTile(
+              leading: Icon(
+                Icons.calendar_month_rounded,
+                color: isSelected ? AppColors.primaryGreen : Colors.grey,
+              ),
+              title: Text(
+                m['label'] as String,
+                style: TextStyle(
+                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                  color: isSelected
+                      ? AppColors.primaryGreen
+                      : AppColors.textDark,
+                ),
+              ),
+              trailing: isSelected
+                  ? const Icon(Icons.check, color: AppColors.primaryGreen)
+                  : null,
+              onTap: () {
+                setState(() => _selectedMonthKey = m['key'] as String?);
+                Navigator.pop(ctx);
+              },
+            );
+          }),
+          const SizedBox(height: 16),
+        ],
       ),
     );
   }
