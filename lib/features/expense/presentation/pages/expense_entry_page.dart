@@ -6,7 +6,8 @@ import '../../../../core/services/firebase_mess_service.dart';
 import '../../../../core/services/firebase_auth_service.dart';
 
 class ExpenseEntryPage extends StatefulWidget {
-  const ExpenseEntryPage({super.key});
+  final String? selectedMonthKey;
+  const ExpenseEntryPage({super.key, this.selectedMonthKey});
 
   @override
   State<ExpenseEntryPage> createState() => _ExpenseEntryPageState();
@@ -103,7 +104,7 @@ class _ExpenseEntryPageState extends State<ExpenseEntryPage> {
         ),
         const SizedBox(height: 8),
         DropdownButtonFormField<String>(
-          value: _selectedCategory,
+          initialValue: _selectedCategory,
           decoration: InputDecoration(
             filled: true,
             fillColor: Colors.white,
@@ -145,8 +146,9 @@ class _ExpenseEntryPageState extends State<ExpenseEntryPage> {
           .collection('members')
           .snapshots(),
       builder: (context, snapshot) {
-        if (!snapshot.hasData)
+        if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
+        }
         final members = snapshot.data!.docs;
 
         return Column(

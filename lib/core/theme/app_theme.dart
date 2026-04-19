@@ -18,6 +18,18 @@ class AppTheme {
     ),
     scaffoldBackgroundColor: const Color(0xFF121212),
     textTheme: GoogleFonts.poppinsTextTheme(ThemeData.dark().textTheme),
+    snackBarTheme: const SnackBarThemeData(
+      behavior: SnackBarBehavior.floating,
+      contentTextStyle: TextStyle(
+        fontSize: 14,
+        fontWeight: FontWeight.w500,
+        color: Colors.white,
+      ),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.all(Radius.circular(12)),
+      ),
+      insetPadding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+    ),
     appBarTheme: const AppBarTheme(
       backgroundColor: Color(0xFF1E1E1E),
       foregroundColor: Colors.white,
@@ -120,6 +132,18 @@ class AppTheme {
     ),
     scaffoldBackgroundColor: AppColors.bgColor,
     textTheme: GoogleFonts.poppinsTextTheme(),
+    snackBarTheme: const SnackBarThemeData(
+      behavior: SnackBarBehavior.floating,
+      contentTextStyle: TextStyle(
+        fontSize: 14,
+        fontWeight: FontWeight.w500,
+        color: Colors.white,
+      ),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.all(Radius.circular(12)),
+      ),
+      insetPadding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+    ),
     appBarTheme: const AppBarTheme(
       backgroundColor: AppColors.primaryGreen,
       foregroundColor: Colors.white,

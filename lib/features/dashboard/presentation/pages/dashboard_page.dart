@@ -3,10 +3,10 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/services/deletion_scheduler.dart';
 import '../../../profile/presentation/pages/profile_page.dart';
 import '../../../transaction/presentation/pages/transaction_page.dart';
-import '../../../member/presentation/pages/member_page.dart';
-import '../../../meal/presentation/pages/meal_page_working.dart';
+import '../../../chat/presentation/pages/chat_page.dart';
 import '../../../expense/presentation/pages/expense_entry_page.dart';
 import '../../../withdraw/presentation/pages/withdraw_request_page.dart';
 import '../../../reports/presentation/pages/reports_pdf_page.dart';
@@ -28,6 +28,10 @@ class _DashboardPageState extends State<DashboardPage> {
   String _plan = 'free';
   String _currentMonth = '';
 
+  /// null = use running month from ActiveMonthService
+  /// non-null = user has switched to this month (format: "YYYY-MM")
+  String? _selectedMonthKey;
+
   // Real data from Firestore
   double _myBalance = 0;
   double _messBalance = 0;
@@ -39,12 +43,221 @@ class _DashboardPageState extends State<DashboardPage> {
   int _myMeals = 0;
   int _messMeals = 0;
 
+  bool _invitationChecked = false;
+  DateTime? _lastBackPressTime;
+
   @override
   void initState() {
     super.initState();
     final now = DateTime.now();
     _currentMonth = '${_monthName(now.month)} ${now.year}';
+    // ignore: unawaited_futures
+    DeletionScheduler.runIfNeeded();
     _loadDashboardData();
+    _checkPendingInvitations();
+  }
+
+  Future<void> _checkPendingInvitations() async {
+    try {
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid == null) return;
+      final snap = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .collection('invitations')
+          .where('status', isEqualTo: 'pending')
+          .get();
+      if (snap.docs.isEmpty || !mounted || _invitationChecked) return;
+      _invitationChecked = true;
+      // Show popup for first pending invitation
+      final inv = {...snap.docs.first.data(), 'id': snap.docs.first.id};
+      _showInvitationPopup(inv);
+    } catch (_) {}
+  }
+
+  void _showInvitationPopup(Map<String, dynamic> inv) {
+    final messName = inv['messName'] as String? ?? 'Unknown Mess';
+    final managerName = inv['managerName'] as String? ?? 'Manager';
+    final invId = inv['id'] as String? ?? '';
+    final messId = inv['messId'] as String? ?? '';
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      barrierColor: Colors.black.withValues(alpha: 0.6),
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        contentPadding: const EdgeInsets.all(24),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 60,
+              height: 60,
+              decoration: BoxDecoration(
+                color: AppColors.primaryGreen.withValues(alpha: 0.12),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.mail_rounded,
+                color: AppColors.primaryGreen,
+                size: 30,
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Mess Invitation',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'You have got an invitation to join "$messName" from the manager $managerName',
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 14, color: Colors.black87),
+            ),
+            const SizedBox(height: 24),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () async {
+                      Navigator.pop(ctx);
+                      await _rejectInvitation(invId, messId);
+                    },
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.red,
+                      side: const BorderSide(color: Colors.red),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                    child: const Text('REJECT'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () async {
+                      Navigator.pop(ctx);
+                      await _acceptInvitation(inv);
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primaryGreen,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                    child: const Text(
+                      'JOIN',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _acceptInvitation(Map<String, dynamic> inv) async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    final messId = inv['messId'] as String? ?? '';
+    final invId = inv['id'] as String? ?? '';
+    final memberName = inv['memberName'] as String? ?? '';
+    final memberPhone = inv['memberPhone'] as String? ?? '';
+    final initialBalance = (inv['initialBalance'] as num?)?.toDouble() ?? 0;
+
+    try {
+      final batch = FirebaseFirestore.instance.batch();
+
+      batch.set(
+        FirebaseFirestore.instance
+            .collection('messes')
+            .doc(messId)
+            .collection('members')
+            .doc(uid),
+        {
+          'name': memberName,
+          'phone': memberPhone,
+          'balance': initialBalance,
+          'isActive': true,
+          'joinedAt': FieldValue.serverTimestamp(),
+        },
+      );
+
+      batch.update(
+        FirebaseFirestore.instance
+            .collection('users')
+            .doc(uid)
+            .collection('invitations')
+            .doc(invId),
+        {'status': 'accepted'},
+      );
+
+      // Update user's messIds
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .get();
+      final existing = List<String>.from(
+        userDoc.data()?['messIds'] as List? ?? [],
+      );
+      if (!existing.contains(messId)) existing.add(messId);
+      batch.update(FirebaseFirestore.instance.collection('users').doc(uid), {
+        'messIds': existing,
+        'messId': messId,
+      });
+
+      await batch.commit();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Joined mess successfully!'),
+            backgroundColor: Colors.green,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        _loadDashboardData();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _rejectInvitation(String invId, String messId) async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    try {
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .collection('invitations')
+          .doc(invId)
+          .update({'status': 'rejected'});
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Invitation rejected'),
+            backgroundColor: Colors.orange,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (_) {}
   }
 
   String _monthName(int m) => const [
@@ -62,6 +275,59 @@ class _DashboardPageState extends State<DashboardPage> {
     'November',
     'December',
   ][m];
+
+  /// Returns the display label for the currently selected month.
+  /// If _selectedMonthKey is null, shows _currentMonth (running month label).
+  String get _displayMonth {
+    if (_selectedMonthKey == null) return _currentMonth;
+    final parts = _selectedMonthKey!.split('-');
+    final year = int.parse(parts[0]);
+    final month = int.parse(parts[1]);
+    return '${_monthName(month)} $year';
+  }
+
+  void _switchToPreviousMonth() {
+    setState(() {
+      if (_selectedMonthKey == null) {
+        // Start from current month and go back one
+        final now = DateTime.now();
+        final prev = DateTime(now.year, now.month - 1);
+        _selectedMonthKey =
+            '${prev.year}-${prev.month.toString().padLeft(2, '0')}';
+      } else {
+        final parts = _selectedMonthKey!.split('-');
+        final year = int.parse(parts[0]);
+        final month = int.parse(parts[1]);
+        final prev = DateTime(year, month - 1);
+        _selectedMonthKey =
+            '${prev.year}-${prev.month.toString().padLeft(2, '0')}';
+      }
+    });
+  }
+
+  void _switchToNextMonth() {
+    setState(() {
+      if (_selectedMonthKey == null) return;
+      final parts = _selectedMonthKey!.split('-');
+      final year = int.parse(parts[0]);
+      final month = int.parse(parts[1]);
+      final now = DateTime.now();
+      final currentKey = '${now.year}-${now.month.toString().padLeft(2, '0')}';
+      // Don't go beyond current calendar month
+      if (_selectedMonthKey == currentKey) {
+        _selectedMonthKey = null; // back to running month
+        return;
+      }
+      final next = DateTime(year, month + 1);
+      final nextKey = '${next.year}-${next.month.toString().padLeft(2, '0')}';
+      // If next month reaches current month, reset to null (running month)
+      if (nextKey == currentKey) {
+        _selectedMonthKey = null;
+      } else {
+        _selectedMonthKey = nextKey;
+      }
+    });
+  }
 
   Future<void> _loadDashboardData() async {
     try {
@@ -184,19 +450,58 @@ class _DashboardPageState extends State<DashboardPage> {
     } catch (_) {}
   }
 
+  Future<bool> _onWillPop() async {
+    final now = DateTime.now();
+    if (_lastBackPressTime == null ||
+        now.difference(_lastBackPressTime!) > const Duration(seconds: 2)) {
+      _lastBackPressTime = now;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Row(
+            children: [
+              Icon(Icons.exit_to_app, color: Colors.white, size: 18),
+              SizedBox(width: 10),
+              Text('Press back again to exit app'),
+            ],
+          ),
+          duration: const Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: Colors.black87,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+          ),
+          margin: const EdgeInsets.only(bottom: 80, left: 24, right: 24),
+        ),
+      );
+      return false;
+    }
+    return true;
+  }
+
   @override
   Widget build(BuildContext context) {
     final pages = [
-      const MealPageWorking(),
-      const MemberPage(embedded: true),
-      _buildHomePage(),
-      const TransactionPage(),
       const MenuPage(),
+      const TransactionPage(),
+      _buildHomePage(),
+      const ChatPage(),
+      const ProfilePage(),
     ];
-    return Scaffold(
-      backgroundColor: AppColors.bgColor,
-      body: pages[_selectedIndex],
-      bottomNavigationBar: _buildBottomNav(),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop) return;
+        final shouldExit = await _onWillPop();
+        if (shouldExit && context.mounted) {
+          // ignore: use_build_context_synchronously
+          Navigator.of(context).pop();
+        }
+      },
+      child: Scaffold(
+        backgroundColor: AppColors.bgColor,
+        body: pages[_selectedIndex],
+        bottomNavigationBar: _buildBottomNav(),
+      ),
     );
   }
 
@@ -237,6 +542,12 @@ class _DashboardPageState extends State<DashboardPage> {
       floating: false,
       pinned: true,
       backgroundColor: AppColors.primaryGreen,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.only(
+          bottomLeft: Radius.circular(24),
+          bottomRight: Radius.circular(24),
+        ),
+      ),
       flexibleSpace: FlexibleSpaceBar(
         background: Container(
           decoration: const BoxDecoration(
@@ -244,6 +555,10 @@ class _DashboardPageState extends State<DashboardPage> {
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [AppColors.primaryGreen, AppColors.buttonGreen],
+            ),
+            borderRadius: BorderRadius.only(
+              bottomLeft: Radius.circular(24),
+              bottomRight: Radius.circular(24),
             ),
           ),
           child: SafeArea(
@@ -295,12 +610,38 @@ class _DashboardPageState extends State<DashboardPage> {
                               ],
                             ),
                             const SizedBox(height: 4),
-                            Text(
-                              _currentMonth,
-                              style: const TextStyle(
-                                fontSize: 13,
-                                color: Colors.white70,
-                              ),
+                            Row(
+                              children: [
+                                GestureDetector(
+                                  onTap: _switchToPreviousMonth,
+                                  child: const Icon(
+                                    Icons.chevron_left,
+                                    color: Colors.white70,
+                                    size: 18,
+                                  ),
+                                ),
+                                const SizedBox(width: 2),
+                                Text(
+                                  _displayMonth,
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    color: Colors.white70,
+                                  ),
+                                ),
+                                const SizedBox(width: 2),
+                                GestureDetector(
+                                  onTap: _selectedMonthKey == null
+                                      ? null
+                                      : _switchToNextMonth,
+                                  child: Icon(
+                                    Icons.chevron_right,
+                                    color: _selectedMonthKey == null
+                                        ? Colors.white30
+                                        : Colors.white70,
+                                    size: 18,
+                                  ),
+                                ),
+                              ],
                             ),
                           ],
                         ),
@@ -770,21 +1111,29 @@ class _DashboardPageState extends State<DashboardPage> {
       case 'Deposit':
         await Navigator.push(
           context,
-          MaterialPageRoute(builder: (_) => const DepositPage()),
+          MaterialPageRoute(
+            builder: (_) => DepositPage(selectedMonthKey: _selectedMonthKey),
+          ),
         );
         _loadDashboardData();
         break;
       case 'Expense':
         await Navigator.push(
           context,
-          MaterialPageRoute(builder: (_) => const ExpenseEntryPage()),
+          MaterialPageRoute(
+            builder: (_) =>
+                ExpenseEntryPage(selectedMonthKey: _selectedMonthKey),
+          ),
         );
         _loadDashboardData();
         break;
       case 'Withdraw':
         await Navigator.push(
           context,
-          MaterialPageRoute(builder: (_) => const WithdrawRequestPage()),
+          MaterialPageRoute(
+            builder: (_) =>
+                WithdrawRequestPage(selectedMonthKey: _selectedMonthKey),
+          ),
         );
         _loadDashboardData();
         break;
@@ -795,16 +1144,16 @@ class _DashboardPageState extends State<DashboardPage> {
         );
         break;
       case 'Menu':
-        setState(() => _selectedIndex = 4);
-        break;
-      case 'Members':
-        setState(() => _selectedIndex = 1);
-        break;
-      case 'Meal':
         setState(() => _selectedIndex = 0);
         break;
+      case 'Members':
+        // Members no longer a footer tab — no-op
+        break;
+      case 'Meal':
+        // Meal no longer a footer tab — no-op
+        break;
       case 'Transaction':
-        setState(() => _selectedIndex = 3);
+        setState(() => _selectedIndex = 1);
         break;
     }
   }
@@ -986,6 +1335,10 @@ class _DashboardPageState extends State<DashboardPage> {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(20),
+          topRight: Radius.circular(20),
+        ),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.08),
@@ -1000,11 +1353,11 @@ class _DashboardPageState extends State<DashboardPage> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _buildNavItem(0, Icons.restaurant_menu, 'Meal'),
-              _buildNavItem(1, Icons.people, 'Member'),
+              _buildNavItem(0, Icons.grid_view_rounded, 'Menu'),
+              _buildNavItem(1, Icons.receipt_long, 'Transaction'),
               _buildNavItem(2, Icons.home_rounded, 'Home'),
-              _buildNavItem(3, Icons.receipt_long, 'Transaction'),
-              _buildNavItem(4, Icons.grid_view_rounded, 'Menu'),
+              _buildNavItem(3, Icons.chat_bubble_outline_rounded, 'Chat'),
+              _buildNavItem(4, Icons.person_outline_rounded, 'Profile'),
             ],
           ),
         ),

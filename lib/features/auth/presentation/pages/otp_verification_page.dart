@@ -139,6 +139,13 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
         title: const Text('Verify Phone'),
         backgroundColor: AppColors.primaryGreen,
         foregroundColor: Colors.white,
+        centerTitle: true,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.only(
+            bottomLeft: Radius.circular(20),
+            bottomRight: Radius.circular(20),
+          ),
+        ),
       ),
       body: Padding(
         padding: const EdgeInsets.all(24),

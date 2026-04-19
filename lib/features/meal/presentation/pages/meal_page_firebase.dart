@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/services/firebase_mess_service.dart';
+import '../../../../core/services/active_month_service.dart';
+import '../../../../core/utils/app_date_picker.dart';
 import '../../data/models/meal_model.dart';
 import '../../data/services/firebase_meal_service.dart';
 import '../../../member/data/models/member_model.dart';
@@ -140,10 +142,14 @@ class _MealPageFirebaseState extends State<MealPageFirebase>
         children: [
           IconButton(
             icon: const Icon(Icons.chevron_left),
-            onPressed: () {
-              setState(() {
-                _selectedDate = _selectedDate.subtract(const Duration(days: 1));
-              });
+            onPressed: () async {
+              final range = await ActiveMonthService.getRunningMonthRange(
+                _messId,
+              );
+              final prev = _selectedDate.subtract(const Duration(days: 1));
+              if (!prev.isBefore(range.start)) {
+                setState(() => _selectedDate = prev);
+              }
             },
           ),
           Column(
@@ -167,10 +173,14 @@ class _MealPageFirebaseState extends State<MealPageFirebase>
           ),
           IconButton(
             icon: const Icon(Icons.chevron_right),
-            onPressed: () {
-              setState(() {
-                _selectedDate = _selectedDate.add(const Duration(days: 1));
-              });
+            onPressed: () async {
+              final range = await ActiveMonthService.getRunningMonthRange(
+                _messId,
+              );
+              final next = _selectedDate.add(const Duration(days: 1));
+              if (!next.isAfter(range.end)) {
+                setState(() => _selectedDate = next);
+              }
             },
           ),
         ],

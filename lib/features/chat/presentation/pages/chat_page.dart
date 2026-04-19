@@ -11,6 +11,14 @@ class ChatPage extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Mess Chat'),
         backgroundColor: AppColors.primaryGreen,
+        foregroundColor: Colors.white,
+        centerTitle: true,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.only(
+            bottomLeft: Radius.circular(20),
+            bottomRight: Radius.circular(20),
+          ),
+        ),
         actions: [
           IconButton(icon: const Icon(Icons.search), onPressed: () {}),
           IconButton(icon: const Icon(Icons.more_vert), onPressed: () {}),

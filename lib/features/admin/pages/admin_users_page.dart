@@ -485,7 +485,26 @@ class _UserTile extends StatelessWidget {
       ),
     );
     if (ok == true) {
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .get();
+      final email = (userDoc.data()?['email'] as String? ?? '').toLowerCase();
+
+      // Delete Firestore user doc
       await FirebaseFirestore.instance.collection('users').doc(uid).delete();
+
+      // Remove from deleted_users too — so they CAN re-register freely
+      if (email.isNotEmpty) {
+        final deletedSnap = await FirebaseFirestore.instance
+            .collection('deleted_users')
+            .where('email', isEqualTo: email)
+            .limit(1)
+            .get();
+        for (final doc in deletedSnap.docs) {
+          await doc.reference.delete();
+        }
+      }
     }
   }
 }

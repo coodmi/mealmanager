@@ -73,6 +73,78 @@ class _LoginPageState extends State<LoginPage>
     setState(() => _isLoading = true);
     final email = _registerEmailController.text.trim();
     final name = _registerNameController.text.trim();
+    final mobile = _registerMobileController.text.trim();
+
+    // Check duplicate email
+    final emailSnap = await FirebaseFirestore.instance
+        .collection('users')
+        .where('email', isEqualTo: email.toLowerCase())
+        .limit(1)
+        .get();
+    if (emailSnap.docs.isNotEmpty) {
+      setState(() => _isLoading = false);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Email already registered'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    // Check duplicate phone
+    if (mobile.isNotEmpty) {
+      // Try both with and without +88 prefix
+      final variants = [mobile];
+      if (mobile.startsWith('0')) variants.add('+88$mobile');
+      if (mobile.startsWith('+88')) variants.add(mobile.substring(3));
+
+      QuerySnapshot? phoneSnap;
+      for (final v in variants) {
+        final result = await FirebaseFirestore.instance
+            .collection('users')
+            .where('mobile', isEqualTo: v)
+            .limit(1)
+            .get();
+        if (result.docs.isNotEmpty) {
+          phoneSnap = result;
+          break;
+        }
+      }
+      if (phoneSnap != null && phoneSnap.docs.isNotEmpty) {
+        setState(() => _isLoading = false);
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Phone number already registered'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+    }
+
+    // Check if this email was deleted by admin
+    final deletedSnap = await FirebaseFirestore.instance
+        .collection('deleted_users')
+        .where('email', isEqualTo: email.toLowerCase())
+        .limit(1)
+        .get();
+    if (deletedSnap.docs.isNotEmpty) {
+      setState(() => _isLoading = false);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'This account has been removed. Please contact support.',
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
     final result = await EmailService.sendOTPEmail(email: email, name: name);
     setState(() => _isLoading = false);
     if (!mounted) return;
@@ -80,7 +152,7 @@ class _LoginPageState extends State<LoginPage>
       _showOtpDialog(
         email: email,
         name: name,
-        mobile: _registerMobileController.text.trim(),
+        mobile: mobile,
         password: _registerPasswordController.text,
       );
     } else {
@@ -671,7 +743,11 @@ class _LoginPageState extends State<LoginPage>
                   unselectedLabelColor: AppColors.textLight,
                   labelStyle: const TextStyle(
                     fontSize: 16,
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  unselectedLabelStyle: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.normal,
                   ),
                   indicator: BoxDecoration(
                     color: Colors.white,

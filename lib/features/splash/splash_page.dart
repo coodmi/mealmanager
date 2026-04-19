@@ -108,6 +108,24 @@ class _SplashPageState extends State<SplashPage> with TickerProviderStateMixin {
           context.go('/profile-setup');
           return;
         }
+        // Check for pending invitations regardless of messId
+        bool hasPendingInvitation = false;
+        try {
+          final invSnap = await FirebaseFirestore.instance
+              .collection('users')
+              .doc(user.uid)
+              .collection('invitations')
+              .where('status', isEqualTo: 'pending')
+              .limit(1)
+              .get();
+          hasPendingInvitation = invSnap.docs.isNotEmpty;
+        } catch (_) {}
+
+        if (hasPendingInvitation) {
+          if (mounted) context.go('/create-join-mess');
+          return;
+        }
+
         if (messId != null && messId.toString().isNotEmpty) {
           // Check if mess setup is complete
           try {

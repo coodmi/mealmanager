@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/utils/permission_utils.dart';
 import '../../../expense/presentation/pages/expense_entry_page.dart';
 import '../../../withdraw/presentation/pages/withdraw_request_page.dart';
 import '../../../reports/presentation/pages/reports_pdf_page.dart';
@@ -68,6 +69,13 @@ class _MenuPageState extends State<MenuPage> {
         ),
         backgroundColor: AppColors.primaryGreen,
         foregroundColor: Colors.white,
+        centerTitle: true,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.only(
+            bottomLeft: Radius.circular(20),
+            bottomRight: Radius.circular(20),
+          ),
+        ),
         elevation: 0,
       ),
       body: ListView(
@@ -80,6 +88,14 @@ class _MenuPageState extends State<MenuPage> {
               Icons.admin_panel_settings_rounded,
               Colors.deepPurple,
               () => context.push('/admin'),
+            ),
+          if (!_isManager)
+            _item(
+              context,
+              '🛡️  Admin Panel',
+              Icons.admin_panel_settings_rounded,
+              Colors.deepPurple,
+              () => showNoPermissionSnack(context),
             ),
           if (_isManager) const SizedBox(height: 14),
           _section('Mess Management', [

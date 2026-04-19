@@ -37,6 +37,10 @@ class _AdminSettingsPageState extends State<AdminSettingsPage>
             labelColor: AppColors.primaryGreen,
             unselectedLabelColor: AppColors.textLight,
             indicatorColor: AppColors.primaryGreen,
+            labelStyle: const TextStyle(fontWeight: FontWeight.bold),
+            unselectedLabelStyle: const TextStyle(
+              fontWeight: FontWeight.normal,
+            ),
             tabs: const [
               Tab(text: 'App Settings'),
               Tab(text: 'Pricing / Plans'),

@@ -384,6 +384,8 @@ class _MemberDetailsPageState extends State<MemberDetailsPage>
         indicatorColor: AppColors.primaryGreen,
         labelColor: AppColors.primaryGreen,
         unselectedLabelColor: AppColors.textLight,
+        labelStyle: const TextStyle(fontWeight: FontWeight.bold),
+        unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.normal),
         tabs: const [
           Tab(text: 'Meal History'),
           Tab(text: 'Transactions'),

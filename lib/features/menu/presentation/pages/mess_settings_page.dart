@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/router/app_router.dart';
+import '../../../../core/utils/permission_utils.dart';
 import '../../../member/presentation/pages/member_page.dart';
 import 'subscription_page.dart';
 
@@ -89,6 +91,10 @@ class _MessSettingsPageState extends State<MessSettingsPage> {
   }
 
   Future<void> _saveSettings() async {
+    if (!_isManager) {
+      showNoPermissionSnack(context);
+      return;
+    }
     if (_nameCtrl.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -138,6 +144,10 @@ class _MessSettingsPageState extends State<MessSettingsPage> {
   }
 
   Future<void> _setMealEntryMode(String mode) async {
+    if (!_isManager) {
+      showNoPermissionSnack(context);
+      return;
+    }
     setState(() => _mealEntryMode = mode);
     try {
       await FirebaseFirestore.instance.collection('messes').doc(_messId).update(
@@ -168,6 +178,13 @@ class _MessSettingsPageState extends State<MessSettingsPage> {
         ),
         backgroundColor: AppColors.primaryGreen,
         foregroundColor: Colors.white,
+        centerTitle: true,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.only(
+            bottomLeft: Radius.circular(20),
+            bottomRight: Radius.circular(20),
+          ),
+        ),
         elevation: 0,
         automaticallyImplyLeading: !_isFirstSetup,
       ),
@@ -563,6 +580,10 @@ class _MessSettingsPageState extends State<MessSettingsPage> {
   }
 
   void _showBazarScheduleDialog() async {
+    if (!_isManager) {
+      showNoPermissionSnack(context);
+      return;
+    }
     // Load current schedule from Firestore
     final messDoc = await FirebaseFirestore.instance
         .collection('messes')
@@ -657,6 +678,10 @@ class _MessSettingsPageState extends State<MessSettingsPage> {
   }
 
   void _confirmMonthClose() {
+    if (!_isManager) {
+      showNoPermissionSnack(context);
+      return;
+    }
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -875,7 +900,7 @@ class _MessSettingsPageState extends State<MessSettingsPage> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text('Delete Mess?', style: TextStyle(color: Colors.red)),
         content: const Text(
-          'This will permanently delete your mess and all its data. All members will lose access. This cannot be undone.',
+          'Your mess will be moved to the recycle bin. If deleted by the Manager, users may contact support. Deleted mess can be recovered within 30 days only after deletion from Admin Panel > Mess > Recycle Bin. After 30 days, data recovery is not possible.',
         ),
         actions: [
           TextButton(
@@ -897,38 +922,27 @@ class _MessSettingsPageState extends State<MessSettingsPage> {
 
   Future<void> _doDeleteMess() async {
     try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) return;
-
-      // Remove messId from all members' user docs
-      final membersSnap = await FirebaseFirestore.instance
-          .collection('messes')
-          .doc(_messId)
-          .collection('members')
-          .get();
-
-      final batch = FirebaseFirestore.instance.batch();
-      for (final doc in membersSnap.docs) {
-        batch.update(
-          FirebaseFirestore.instance.collection('users').doc(doc.id),
-          {'messId': '', 'role': 'member'},
-        );
-      }
-      // Delete mess doc
-      batch.delete(
-        FirebaseFirestore.instance.collection('messes').doc(_messId),
-      );
-      await batch.commit();
+      await FirebaseFunctions.instance.httpsCallable('softDeleteMess').call({
+        'messId': _messId,
+      });
 
       if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Mess deleted. Recoverable within 30 days.'),
+            backgroundColor: Colors.green,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
         context.go('/create-join-mess');
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error deleting mess: $e'),
+            content: Text('Error: $e'),
             backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
           ),
         );
       }

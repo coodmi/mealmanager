@@ -738,7 +738,7 @@ class _CreateJoinMessPageState extends State<CreateJoinMessPage> {
                 controller: _messIdController,
                 decoration: InputDecoration(
                   labelText: 'Enter Mess ID',
-                  hintText: 'MM00000',
+                  hintText: 'M00000',
                   hintStyle: TextStyle(
                     color: Colors.grey[400],
                     letterSpacing: 1,
@@ -813,14 +813,15 @@ class _CreateJoinMessPageState extends State<CreateJoinMessPage> {
               const SizedBox(height: 14),
               TextFormField(
                 controller: _addressController,
-                decoration: const InputDecoration(labelText: 'Address'),
-                maxLines: 2,
+                decoration: const InputDecoration(labelText: 'Mess Address'),
+                maxLines: 1,
+                textInputAction: TextInputAction.done,
                 validator: (v) => v?.isEmpty ?? true ? 'Required' : null,
               ),
               const SizedBox(height: 14),
               DropdownButtonFormField<String>(
                 value: _selectedDivision,
-                decoration: const InputDecoration(labelText: 'Division'),
+                decoration: const InputDecoration(labelText: 'Mess Division'),
                 items: _divisionDistricts.keys
                     .map((d) => DropdownMenuItem(value: d, child: Text(d)))
                     .toList(),
@@ -833,7 +834,7 @@ class _CreateJoinMessPageState extends State<CreateJoinMessPage> {
               const SizedBox(height: 14),
               DropdownButtonFormField<String>(
                 value: _selectedDistrict,
-                decoration: const InputDecoration(labelText: 'District'),
+                decoration: const InputDecoration(labelText: 'Mess District'),
                 items: _filteredDistricts
                     .map((d) => DropdownMenuItem(value: d, child: Text(d)))
                     .toList(),

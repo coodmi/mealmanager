@@ -5,7 +5,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../../core/constants/app_colors.dart';
 
 class DepositPage extends StatefulWidget {
-  const DepositPage({super.key});
+  final String? selectedMonthKey;
+  const DepositPage({super.key, this.selectedMonthKey});
 
   @override
   State<DepositPage> createState() => _DepositPageState();
@@ -222,6 +223,13 @@ class _DepositPageState extends State<DepositPage> {
         ),
         backgroundColor: AppColors.primaryGreen,
         foregroundColor: Colors.white,
+        centerTitle: true,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.only(
+            bottomLeft: Radius.circular(20),
+            bottomRight: Radius.circular(20),
+          ),
+        ),
         elevation: 0,
       ),
       body: SingleChildScrollView(

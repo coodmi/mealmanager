@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/utils/permission_utils.dart';
 import '../../../menu/presentation/pages/subscription_page.dart';
 import 'member_details_page.dart';
 
@@ -71,13 +72,21 @@ class _MemberPageState extends State<MemberPage> {
               style: TextStyle(color: Colors.white),
             ),
           )
-        : null;
+        : FloatingActionButton.extended(
+            onPressed: () => showNoPermissionSnack(context),
+            backgroundColor: Colors.grey.shade400,
+            icon: const Icon(Icons.person_add, color: Colors.white),
+            label: const Text(
+              'Add Member',
+              style: TextStyle(color: Colors.white),
+            ),
+          );
 
     if (widget.embedded) {
       return Stack(
         children: [
           body,
-          if (fab != null) Positioned(bottom: 16, right: 16, child: fab),
+          Positioned(bottom: 16, right: 16, child: fab),
         ],
       );
     }
@@ -91,7 +100,13 @@ class _MemberPageState extends State<MemberPage> {
 
   Widget _buildHeader() {
     return Container(
-      color: AppColors.primaryGreen,
+      decoration: const BoxDecoration(
+        color: AppColors.primaryGreen,
+        borderRadius: BorderRadius.only(
+          bottomLeft: Radius.circular(20),
+          bottomRight: Radius.circular(20),
+        ),
+      ),
       child: SafeArea(
         bottom: false,
         child: Padding(
@@ -99,8 +114,9 @@ class _MemberPageState extends State<MemberPage> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
+              const SizedBox(width: 48), // balance for icon on right
               const Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   Text(
                     'Members',
@@ -124,6 +140,14 @@ class _MemberPageState extends State<MemberPage> {
                     color: Colors.white,
                   ),
                   onPressed: _showAddMemberDialog,
+                )
+              else
+                IconButton(
+                  icon: const Icon(
+                    Icons.person_add_rounded,
+                    color: Colors.white54,
+                  ),
+                  onPressed: () => showNoPermissionSnack(context),
                 ),
             ],
           ),

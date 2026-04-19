@@ -5,7 +5,8 @@ import '../../../../core/services/firebase_mess_service.dart';
 import '../../../../core/services/firebase_auth_service.dart';
 
 class WithdrawRequestPage extends StatefulWidget {
-  const WithdrawRequestPage({super.key});
+  final String? selectedMonthKey;
+  const WithdrawRequestPage({super.key, this.selectedMonthKey});
 
   @override
   State<WithdrawRequestPage> createState() => _WithdrawRequestPageState();
@@ -103,6 +104,13 @@ class _WithdrawRequestPageState extends State<WithdrawRequestPage> {
         title: const Text('Withdraw Request'),
         backgroundColor: AppColors.primaryGreen,
         foregroundColor: Colors.white,
+        centerTitle: true,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.only(
+            bottomLeft: Radius.circular(20),
+            bottomRight: Radius.circular(20),
+          ),
+        ),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
@@ -266,7 +274,7 @@ class _WithdrawRequestPageState extends State<WithdrawRequestPage> {
         ),
         const SizedBox(height: 8),
         DropdownButtonFormField<String>(
-          value: _selectedPaymentMethod,
+          initialValue: _selectedPaymentMethod,
           decoration: InputDecoration(
             filled: true,
             fillColor: Colors.white,

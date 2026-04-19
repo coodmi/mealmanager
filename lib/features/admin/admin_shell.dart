@@ -12,6 +12,7 @@ import 'pages/admin_notifications_page.dart';
 import 'pages/admin_suggestions_page.dart';
 import 'pages/admin_settings_page.dart';
 import 'pages/admin_logs_page.dart';
+import 'pages/admin_recycle_bin_page.dart';
 
 class AdminShell extends StatefulWidget {
   const AdminShell({super.key});
@@ -36,6 +37,7 @@ class _AdminShellState extends State<AdminShell> {
     _NavItem(Icons.lightbulb_rounded, 'Suggestion Box'),
     _NavItem(Icons.settings_rounded, 'Settings'),
     _NavItem(Icons.history_rounded, 'User Logs'),
+    _NavItem(Icons.delete_sweep_rounded, 'Recycle Bin'),
   ];
 
   static const _pages = [
@@ -48,6 +50,7 @@ class _AdminShellState extends State<AdminShell> {
     AdminSuggestionsPage(),
     AdminSettingsPage(),
     AdminLogsPage(),
+    AdminRecycleBinPage(),
   ];
 
   @override

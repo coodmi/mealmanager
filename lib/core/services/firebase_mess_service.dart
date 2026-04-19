@@ -9,7 +9,7 @@ class FirebaseMessService {
   static String generateMessId() {
     final random = Random();
     final number = random.nextInt(100000);
-    return 'MM${number.toString().padLeft(5, '0')}';
+    return 'M${number.toString().padLeft(5, '0')}';
   }
 
   // Get all joined mess IDs for current user
@@ -66,6 +66,7 @@ class FirebaseMessService {
         'subscription': 'free',
         'setupComplete': false,
         'createdAt': FieldValue.serverTimestamp(),
+        'lastActivityAt': FieldValue.serverTimestamp(),
       });
 
       // Add to messIds array

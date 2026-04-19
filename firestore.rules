@@ -112,10 +112,13 @@ service cloud.firestore {
       allow write: if isAuth() && userRole() == 'superAdmin';
     }
 
+    match /deleted_messes/{messId} {
+      allow read, write: if isAuth() && isSystemAdmin();
+    }
+
     match /systemLogs/{logId} {
       allow read: if isAuth() && isSystemAdmin();
-      allow create: if isAuth();
-      allow update, delete: if isAuth() && isSystemAdmin();
+      allow write: if false; // only Cloud Functions (Admin SDK) write here
     }
 
     // ─── EMAIL OTPs ──────────────────────────────────────────────────────────

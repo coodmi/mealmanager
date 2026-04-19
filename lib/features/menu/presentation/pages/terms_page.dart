@@ -15,6 +15,13 @@ class TermsPage extends StatelessWidget {
         ),
         backgroundColor: AppColors.primaryGreen,
         foregroundColor: Colors.white,
+        centerTitle: true,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.only(
+            bottomLeft: Radius.circular(20),
+            bottomRight: Radius.circular(20),
+          ),
+        ),
         elevation: 0,
       ),
       body: SingleChildScrollView(

@@ -3,9 +3,12 @@ import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/services/firebase_mess_service.dart';
+import '../../../../core/services/active_month_service.dart';
+import '../../../../core/utils/app_date_picker.dart';
 
 class MealPageWorking extends StatefulWidget {
-  const MealPageWorking({super.key});
+  final String? selectedMonthKey;
+  const MealPageWorking({super.key, this.selectedMonthKey});
 
   @override
   State<MealPageWorking> createState() => _MealPageWorkingState();
@@ -17,6 +20,7 @@ class _MealPageWorkingState extends State<MealPageWorking>
   DateTime _selectedDate = DateTime.now();
   String _messId = '';
   bool _isLoading = true;
+  DateTimeRange? _runningMonthRange;
 
   @override
   void initState() {
@@ -27,10 +31,25 @@ class _MealPageWorkingState extends State<MealPageWorking>
 
   Future<void> _loadMessId() async {
     final messId = await FirebaseMessService.getMessId();
+    final range = await _computeRunningMonthRange(messId);
     setState(() {
       _messId = messId;
+      _runningMonthRange = range;
       _isLoading = false;
     });
+  }
+
+  Future<DateTimeRange> _computeRunningMonthRange(String messId) async {
+    if (widget.selectedMonthKey != null) {
+      final parts = widget.selectedMonthKey!.split('-');
+      final year = int.parse(parts[0]);
+      final month = int.parse(parts[1]);
+      return DateTimeRange(
+        start: DateTime(year, month, 1),
+        end: DateTime(year, month + 1, 0),
+      );
+    }
+    return ActiveMonthService.getRunningMonthRange(messId);
   }
 
   @override
@@ -75,7 +94,13 @@ class _MealPageWorkingState extends State<MealPageWorking>
 
   Widget _buildHeader() {
     return Container(
-      color: AppColors.primaryGreen,
+      decoration: const BoxDecoration(
+        color: AppColors.primaryGreen,
+        borderRadius: BorderRadius.only(
+          bottomLeft: Radius.circular(20),
+          bottomRight: Radius.circular(20),
+        ),
+      ),
       child: SafeArea(
         bottom: false,
         child: Column(
@@ -116,6 +141,10 @@ class _MealPageWorkingState extends State<MealPageWorking>
               indicatorWeight: 3,
               labelColor: Colors.white,
               unselectedLabelColor: Colors.white70,
+              labelStyle: const TextStyle(fontWeight: FontWeight.bold),
+              unselectedLabelStyle: const TextStyle(
+                fontWeight: FontWeight.normal,
+              ),
               tabs: const [
                 Tab(text: 'Breakfast'),
                 Tab(text: 'Lunch'),
@@ -129,6 +158,16 @@ class _MealPageWorkingState extends State<MealPageWorking>
   }
 
   Widget _buildDateSelector() {
+    final range = _runningMonthRange;
+    final isFirstDay =
+        range != null &&
+        !_selectedDate.isAfter(range.start) &&
+        !_selectedDate.isBefore(range.start);
+    final isLastDay =
+        range != null &&
+        !_selectedDate.isBefore(range.end) &&
+        !_selectedDate.isAfter(range.end);
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       color: Colors.white,
@@ -137,11 +176,16 @@ class _MealPageWorkingState extends State<MealPageWorking>
         children: [
           IconButton(
             icon: const Icon(Icons.chevron_left),
-            onPressed: () {
-              setState(() {
-                _selectedDate = _selectedDate.subtract(const Duration(days: 1));
-              });
-            },
+            onPressed: isFirstDay
+                ? null
+                : () {
+                    final prev = _selectedDate.subtract(
+                      const Duration(days: 1),
+                    );
+                    if (range == null || !prev.isBefore(range.start)) {
+                      setState(() => _selectedDate = prev);
+                    }
+                  },
           ),
           Column(
             children: [
@@ -164,11 +208,14 @@ class _MealPageWorkingState extends State<MealPageWorking>
           ),
           IconButton(
             icon: const Icon(Icons.chevron_right),
-            onPressed: () {
-              setState(() {
-                _selectedDate = _selectedDate.add(const Duration(days: 1));
-              });
-            },
+            onPressed: isLastDay
+                ? null
+                : () {
+                    final next = _selectedDate.add(const Duration(days: 1));
+                    if (range == null || !next.isAfter(range.end)) {
+                      setState(() => _selectedDate = next);
+                    }
+                  },
           ),
         ],
       ),
@@ -500,16 +547,14 @@ class _MealPageWorkingState extends State<MealPageWorking>
   }
 
   void _selectDate() async {
-    final picked = await showDatePicker(
+    final picked = await AppDatePicker.show(
       context: context,
+      messId: _messId,
       initialDate: _selectedDate,
-      firstDate: DateTime(2020),
-      lastDate: DateTime(2030),
+      overrideMonthKey: widget.selectedMonthKey,
     );
     if (picked != null && picked != _selectedDate) {
-      setState(() {
-        _selectedDate = picked;
-      });
+      setState(() => _selectedDate = picked);
     }
   }
 

@@ -37,6 +37,10 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage>
             labelColor: AppColors.primaryGreen,
             unselectedLabelColor: AppColors.textLight,
             indicatorColor: AppColors.primaryGreen,
+            labelStyle: const TextStyle(fontWeight: FontWeight.bold),
+            unselectedLabelStyle: const TextStyle(
+              fontWeight: FontWeight.normal,
+            ),
             tabs: const [
               Tab(text: 'Send Notification'),
               Tab(text: 'History'),

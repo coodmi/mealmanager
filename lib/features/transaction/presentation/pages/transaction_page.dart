@@ -50,7 +50,13 @@ class _TransactionPageState extends State<TransactionPage>
       body: Column(
         children: [
           Container(
-            color: AppColors.primaryGreen,
+            decoration: const BoxDecoration(
+              color: AppColors.primaryGreen,
+              borderRadius: BorderRadius.only(
+                bottomLeft: Radius.circular(20),
+                bottomRight: Radius.circular(20),
+              ),
+            ),
             child: SafeArea(
               bottom: false,
               child: Column(
@@ -58,6 +64,7 @@ class _TransactionPageState extends State<TransactionPage>
                   const Padding(
                     padding: EdgeInsets.all(16),
                     child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Text(
                           'Transactions',
@@ -76,6 +83,10 @@ class _TransactionPageState extends State<TransactionPage>
                     indicatorWeight: 3,
                     labelColor: Colors.white,
                     unselectedLabelColor: Colors.white70,
+                    labelStyle: const TextStyle(fontWeight: FontWeight.bold),
+                    unselectedLabelStyle: const TextStyle(
+                      fontWeight: FontWeight.normal,
+                    ),
                     tabs: const [
                       Tab(text: 'All'),
                       Tab(text: 'Deposits'),

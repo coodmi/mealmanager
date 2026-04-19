@@ -18,6 +18,31 @@ class FirebaseAuthService {
     required String password,
   }) async {
     try {
+      // Check duplicate email in Firestore (active users)
+      final emailCheck = await _firestore
+          .collection('users')
+          .where('email', isEqualTo: email.trim().toLowerCase())
+          .limit(1)
+          .get();
+      if (emailCheck.docs.isNotEmpty) {
+        return {'success': false, 'message': 'Email already registered'};
+      }
+
+      // Check duplicate phone in Firestore (active users)
+      if (mobile.isNotEmpty) {
+        final phoneCheck = await _firestore
+            .collection('users')
+            .where('mobile', isEqualTo: mobile.trim())
+            .limit(1)
+            .get();
+        if (phoneCheck.docs.isNotEmpty) {
+          return {
+            'success': false,
+            'message': 'Phone number already registered',
+          };
+        }
+      }
+
       // Create user in Firebase Auth
       final userCredential = await _auth.createUserWithEmailAndPassword(
         email: email,
@@ -32,11 +57,12 @@ class FirebaseAuthService {
       // Save user data to Firestore
       await _firestore.collection('users').doc(user.uid).set({
         'name': name,
-        'mobile': mobile,
-        'email': email,
+        'mobile': mobile.trim(),
+        'email': email.trim().toLowerCase(),
         'createdAt': FieldValue.serverTimestamp(),
         'messId': null,
         'role': 'member',
+        'profileComplete': false,
       });
 
       // Send email verification
