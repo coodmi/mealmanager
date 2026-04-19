@@ -10,6 +10,7 @@ import '../../../chat/presentation/pages/chat_page.dart';
 import '../../../expense/presentation/pages/expense_entry_page.dart';
 import '../../../withdraw/presentation/pages/withdraw_request_page.dart';
 import '../../../reports/presentation/pages/reports_pdf_page.dart';
+import '../../../menu/presentation/pages/mess_requests_page.dart';
 import '../../../menu/presentation/pages/mess_settings_page.dart';
 import '../../../menu/presentation/pages/menu_page.dart';
 import '../../../deposit/presentation/pages/deposit_page.dart';
@@ -1061,9 +1062,9 @@ class _DashboardPageState extends State<DashboardPage> {
               ),
               Expanded(
                 child: _buildActionButton(
-                  'Members',
-                  Icons.people_rounded,
-                  Colors.blue,
+                  'Meal',
+                  Icons.restaurant_rounded,
+                  AppColors.primaryGreen,
                 ),
               ),
             ],
@@ -1073,6 +1074,20 @@ class _DashboardPageState extends State<DashboardPage> {
             children: [
               Expanded(
                 child: _buildActionButton(
+                  'Members',
+                  Icons.people_rounded,
+                  Colors.blue,
+                ),
+              ),
+              Expanded(
+                child: _buildActionButton(
+                  'Mess Requests',
+                  Icons.mark_email_unread_rounded,
+                  Colors.purple,
+                ),
+              ),
+              Expanded(
+                child: _buildActionButton(
                   'Reports',
                   Icons.assessment_rounded,
                   Colors.deepPurple,
@@ -1080,22 +1095,8 @@ class _DashboardPageState extends State<DashboardPage> {
               ),
               Expanded(
                 child: _buildActionButton(
-                  'Meal',
-                  Icons.restaurant_rounded,
-                  AppColors.primaryGreen,
-                ),
-              ),
-              Expanded(
-                child: _buildActionButton(
-                  'Transaction',
-                  Icons.receipt_long_rounded,
-                  Colors.indigo,
-                ),
-              ),
-              Expanded(
-                child: _buildActionButton(
-                  'Menu',
-                  Icons.grid_view_rounded,
+                  'Mess Setting',
+                  Icons.settings_rounded,
                   Colors.teal,
                 ),
               ),
@@ -1143,17 +1144,23 @@ class _DashboardPageState extends State<DashboardPage> {
           MaterialPageRoute(builder: (_) => const ReportsPdfPage()),
         );
         break;
-      case 'Menu':
+      case 'Members':
         setState(() => _selectedIndex = 0);
         break;
-      case 'Members':
-        // Members no longer a footer tab — no-op
-        break;
       case 'Meal':
-        // Meal no longer a footer tab — no-op
+        setState(() => _selectedIndex = 0);
         break;
-      case 'Transaction':
-        setState(() => _selectedIndex = 1);
+      case 'Mess Requests':
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const MessRequestsPage()),
+        );
+        break;
+      case 'Mess Setting':
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const MessSettingsPage()),
+        );
         break;
     }
   }
