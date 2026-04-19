@@ -1,8 +1,19 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../../core/constants/app_colors.dart';
 
 class AboutAppPage extends StatelessWidget {
   const AboutAppPage({super.key});
+
+  static const _pdfUrl =
+      'https://drive.google.com/file/d/19BEiJ7bg1tJj11-Nsj40xU7FuhcqpnDv/view';
+
+  Future<void> _openPdf() async {
+    final uri = Uri.parse(_pdfUrl);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -41,22 +52,13 @@ class AboutAppPage extends StatelessWidget {
               ),
               child: Column(
                 children: [
-                  Container(
-                    width: 80,
-                    height: 80,
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.2),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Center(
-                      child: Text(
-                        'MM',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 28,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(20),
+                    child: Image.asset(
+                      'assets/images/logo.png',
+                      width: 90,
+                      height: 90,
+                      fit: BoxFit.cover,
                     ),
                   ),
                   const SizedBox(height: 14),
@@ -92,7 +94,30 @@ class AboutAppPage extends StatelessWidget {
                 ],
               ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
+
+            // Download PDF button
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: _openPdf,
+                icon: const Icon(Icons.picture_as_pdf_rounded, size: 20),
+                label: const Text(
+                  'About & Features — Download PDF',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.deepOrange,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  elevation: 2,
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
             _textCard(
               'Meal Manager is a smart and simple mess management app designed for bachelor students and job holders living in shared messes. It helps you manage daily meals, deposits, bazar and house expenses and automatically calculates individual and group balances at the end of the month.',
             ),
