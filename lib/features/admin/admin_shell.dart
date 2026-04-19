@@ -13,6 +13,7 @@ import 'pages/admin_suggestions_page.dart';
 import 'pages/admin_settings_page.dart';
 import 'pages/admin_logs_page.dart';
 import 'pages/admin_recycle_bin_page.dart';
+import 'pages/admin_videos_page.dart';
 
 class AdminShell extends StatefulWidget {
   const AdminShell({super.key});
@@ -38,6 +39,7 @@ class _AdminShellState extends State<AdminShell> {
     _NavItem(Icons.settings_rounded, 'Settings'),
     _NavItem(Icons.history_rounded, 'User Logs'),
     _NavItem(Icons.delete_sweep_rounded, 'Recycle Bin'),
+    _NavItem(Icons.smart_display_rounded, 'Tutorial Videos'),
   ];
 
   static const _pages = [
@@ -51,6 +53,7 @@ class _AdminShellState extends State<AdminShell> {
     AdminSettingsPage(),
     AdminLogsPage(),
     AdminRecycleBinPage(),
+    AdminVideosPage(),
   ];
 
   @override
