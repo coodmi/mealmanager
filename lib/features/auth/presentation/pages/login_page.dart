@@ -568,8 +568,50 @@ class _LoginPageState extends State<LoginPage>
     setState(() => _isLoading = true);
     try {
       await FirebaseAuth.instance.signOut();
+
+      final input = _loginEmailController.text.trim();
+
+      // Check if account exists before attempting login
+      final isMobile = RegExp(r'^[0-9+\-\s]{7,15}$').hasMatch(input);
+      String? lookupEmail;
+      if (isMobile) {
+        final variants = [input];
+        if (input.startsWith('0')) variants.add('+88$input');
+        if (input.startsWith('+88')) variants.add(input.substring(3));
+        for (final v in variants) {
+          final q = await FirebaseFirestore.instance
+              .collection('users')
+              .where('mobile', isEqualTo: v)
+              .limit(1)
+              .get();
+          if (q.docs.isNotEmpty) {
+            lookupEmail = q.docs.first.data()['email'] as String?;
+            break;
+          }
+        }
+        if (lookupEmail == null) {
+          setState(() => _isLoading = false);
+          if (!mounted) return;
+          _showNoAccountDialog(input);
+          return;
+        }
+      } else {
+        // Email input — check if exists in Firestore
+        final q = await FirebaseFirestore.instance
+            .collection('users')
+            .where('email', isEqualTo: input.toLowerCase())
+            .limit(1)
+            .get();
+        if (q.docs.isEmpty) {
+          setState(() => _isLoading = false);
+          if (!mounted) return;
+          _showNoAccountDialog(input);
+          return;
+        }
+      }
+
       final result = await AuthService.loginUser(
-        email: _loginEmailController.text.trim(),
+        email: lookupEmail ?? input,
         password: _loginPasswordController.text,
       );
       setState(() => _isLoading = false);
@@ -581,6 +623,7 @@ class _LoginPageState extends State<LoginPage>
           SnackBar(
             content: Text(result['message'] ?? 'Wrong ID/Password entered'),
             backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
           ),
         );
       }
@@ -591,9 +634,52 @@ class _LoginPageState extends State<LoginPage>
         const SnackBar(
           content: Text('Wrong ID/Password entered'),
           backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
         ),
       );
     }
+  }
+
+  void _showNoAccountDialog(String identifier) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.orange),
+            SizedBox(width: 8),
+            Text('No Account Found'),
+          ],
+        ),
+        content: Text(
+          'No account found with "$identifier".\nPlease register to create a new account.',
+          style: const TextStyle(fontSize: 14),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primaryGreen,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            onPressed: () {
+              Navigator.pop(ctx);
+              _tabController.animateTo(1); // Switch to Register tab
+            },
+            child: const Text(
+              'Register Now',
+              style: TextStyle(color: Colors.white),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _navigateAfterLogin() async {
@@ -706,6 +792,64 @@ class _LoginPageState extends State<LoginPage>
                       }
                       setS(() => isSending = true);
                       try {
+                        // Check if account exists first
+                        final q = await FirebaseFirestore.instance
+                            .collection('users')
+                            .where('email', isEqualTo: email.toLowerCase())
+                            .limit(1)
+                            .get();
+                        if (q.docs.isEmpty) {
+                          setS(() => isSending = false);
+                          if (ctx.mounted) Navigator.pop(ctx);
+                          if (mounted) {
+                            showDialog(
+                              context: context,
+                              builder: (c) => AlertDialog(
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                title: const Row(
+                                  children: [
+                                    Icon(
+                                      Icons.warning_amber_rounded,
+                                      color: Colors.orange,
+                                    ),
+                                    SizedBox(width: 8),
+                                    Text('No Account Found'),
+                                  ],
+                                ),
+                                content: Text(
+                                  'No account found with "$email".\nPlease register to create a new account.',
+                                  style: const TextStyle(fontSize: 14),
+                                ),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(c),
+                                    child: const Text('Cancel'),
+                                  ),
+                                  ElevatedButton(
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: AppColors.primaryGreen,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                    ),
+                                    onPressed: () {
+                                      Navigator.pop(c);
+                                      _tabController.animateTo(1);
+                                    },
+                                    child: const Text(
+                                      'Register Now',
+                                      style: TextStyle(color: Colors.white),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }
+                          return;
+                        }
+
                         await FirebaseAuth.instance.sendPasswordResetEmail(
                           email: email,
                         );
@@ -724,11 +868,9 @@ class _LoginPageState extends State<LoginPage>
                         }
                       } on FirebaseAuthException catch (e) {
                         setS(() => isSending = false);
-                        final msg = e.code == 'user-not-found'
-                            ? 'No account found with this email'
-                            : e.code == 'invalid-email'
+                        final msg = e.code == 'invalid-email'
                             ? 'Invalid email address'
-                            : 'Error (${e.code}): ${e.message}';
+                            : 'Error: ${e.message}';
                         if (mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
@@ -1159,6 +1301,10 @@ class _LoginPageState extends State<LoginPage>
                       ),
               ),
             ),
+            const SizedBox(height: 16),
+            _orDivider(),
+            const SizedBox(height: 16),
+            _googleButton('Sign up with Google'),
           ],
         ),
       ),
