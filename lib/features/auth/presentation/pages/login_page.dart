@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
@@ -75,91 +76,165 @@ class _LoginPageState extends State<LoginPage>
     final name = _registerNameController.text.trim();
     final mobile = _registerMobileController.text.trim();
 
-    // Check duplicate email
-    final emailSnap = await FirebaseFirestore.instance
-        .collection('users')
-        .where('email', isEqualTo: email.toLowerCase())
-        .limit(1)
-        .get();
-    if (emailSnap.docs.isNotEmpty) {
-      setState(() => _isLoading = false);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Email already registered'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
+    try {
+      // Check duplicate email with timeout
+      final emailSnap = await FirebaseFirestore.instance
+          .collection('users')
+          .where('email', isEqualTo: email.toLowerCase())
+          .limit(1)
+          .get()
+          .timeout(
+            const Duration(seconds: 10),
+            onTimeout: () => throw TimeoutException('Email check timed out'),
+          );
 
-    // Check duplicate phone
-    if (mobile.isNotEmpty) {
-      // Try both with and without +88 prefix
-      final variants = [mobile];
-      if (mobile.startsWith('0')) variants.add('+88$mobile');
-      if (mobile.startsWith('+88')) variants.add(mobile.substring(3));
-
-      QuerySnapshot? phoneSnap;
-      for (final v in variants) {
-        final result = await FirebaseFirestore.instance
-            .collection('users')
-            .where('mobile', isEqualTo: v)
-            .limit(1)
-            .get();
-        if (result.docs.isNotEmpty) {
-          phoneSnap = result;
-          break;
-        }
-      }
-      if (phoneSnap != null && phoneSnap.docs.isNotEmpty) {
+      if (emailSnap.docs.isNotEmpty) {
         setState(() => _isLoading = false);
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Phone number already registered'),
+            content: Text('Email already registered'),
             backgroundColor: Colors.red,
           ),
         );
         return;
       }
-    }
 
-    // Check if this email was deleted by admin
-    final deletedSnap = await FirebaseFirestore.instance
-        .collection('deleted_users')
-        .where('email', isEqualTo: email.toLowerCase())
-        .limit(1)
-        .get();
-    if (deletedSnap.docs.isNotEmpty) {
+      // Check duplicate phone with timeout
+      if (mobile.isNotEmpty) {
+        // Try both with and without +88 prefix
+        final variants = [mobile];
+        if (mobile.startsWith('0')) variants.add('+88$mobile');
+        if (mobile.startsWith('+88')) variants.add(mobile.substring(3));
+
+        QuerySnapshot? phoneSnap;
+        for (final v in variants) {
+          final result = await FirebaseFirestore.instance
+              .collection('users')
+              .where('mobile', isEqualTo: v)
+              .limit(1)
+              .get()
+              .timeout(
+                const Duration(seconds: 10),
+                onTimeout: () =>
+                    throw TimeoutException('Phone check timed out'),
+              );
+          if (result.docs.isNotEmpty) {
+            phoneSnap = result;
+            break;
+          }
+        }
+        if (phoneSnap != null && phoneSnap.docs.isNotEmpty) {
+          setState(() => _isLoading = false);
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Phone number already registered'),
+              backgroundColor: Colors.red,
+            ),
+          );
+          return;
+        }
+      }
+
+      // Check if this email was deleted by admin with timeout
+      final deletedSnap = await FirebaseFirestore.instance
+          .collection('deleted_users')
+          .where('email', isEqualTo: email.toLowerCase())
+          .limit(1)
+          .get()
+          .timeout(
+            const Duration(seconds: 10),
+            onTimeout: () =>
+                throw TimeoutException('Deleted user check timed out'),
+          );
+
+      if (deletedSnap.docs.isNotEmpty) {
+        setState(() => _isLoading = false);
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'This account has been removed. Please contact support.',
+            ),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
+      // ── OTP DISABLED FOR TESTING ──────────────────────────────────────────
+      // Skip OTP verification and register directly
+      final rr = await FirebaseAuthService.registerUser(
+        name: name,
+        mobile: mobile,
+        email: email,
+        password: _registerPasswordController.text,
+      );
+      setState(() => _isLoading = false);
+      if (!mounted) return;
+      if (rr['success'] == true) {
+        _registerNameController.clear();
+        _registerMobileController.clear();
+        _registerEmailController.clear();
+        _registerPasswordController.clear();
+        _tabController.animateTo(0);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Account created! Please login.'),
+            backgroundColor: Colors.green,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(rr['message'] ?? 'Registration failed'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+      // ── END OTP DISABLED ──────────────────────────────────────────────────
+
+      /* OTP FLOW — re-enable when ready:
+      final result = await EmailService.sendOTPEmail(email: email, name: name);
+      setState(() => _isLoading = false);
+      if (!mounted) return;
+      if (result['success'] == true) {
+        _showOtpDialog(
+          email: email,
+          name: name,
+          mobile: mobile,
+          password: _registerPasswordController.text,
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(result['message'] ?? 'Failed to send OTP'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      */
+    } on TimeoutException catch (e) {
       setState(() => _isLoading = false);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'This account has been removed. Please contact support.',
-          ),
+        SnackBar(
+          content: Text('Connection timeout: ${e.message}. Please try again.'),
           backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
         ),
       );
-      return;
-    }
-
-    final result = await EmailService.sendOTPEmail(email: email, name: name);
-    setState(() => _isLoading = false);
-    if (!mounted) return;
-    if (result['success'] == true) {
-      _showOtpDialog(
-        email: email,
-        name: name,
-        mobile: mobile,
-        password: _registerPasswordController.text,
-      );
-    } else {
+    } catch (e) {
+      setState(() => _isLoading = false);
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(result['message'] ?? 'Failed to send OTP'),
+          content: Text('Error: $e'),
           backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
         ),
       );
     }
@@ -699,7 +774,7 @@ class _LoginPageState extends State<LoginPage>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.bgColor,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 24),

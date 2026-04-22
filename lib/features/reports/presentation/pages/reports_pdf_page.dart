@@ -55,7 +55,7 @@ class _ReportsPdfPageState extends State<ReportsPdfPage> {
     }
 
     return Scaffold(
-      backgroundColor: AppColors.bgColor,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         title: const Text('Reports & PDF'),
         backgroundColor: AppColors.primaryGreen,

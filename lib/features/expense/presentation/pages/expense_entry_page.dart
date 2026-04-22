@@ -64,7 +64,7 @@ class _ExpenseEntryPageState extends State<ExpenseEntryPage> {
     }
 
     return Scaffold(
-      backgroundColor: AppColors.bgColor,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         title: const Text('Expense Entry'),
         backgroundColor: AppColors.primaryGreen,
@@ -84,6 +84,9 @@ class _ExpenseEntryPageState extends State<ExpenseEntryPage> {
             _buildNoteField(),
             const SizedBox(height: 24),
             _buildSubmitButton(),
+            const SizedBox(height: 12),
+            _buildImportantInfo(),
+            const SizedBox(height: 24),
           ],
         ),
       ),
@@ -291,6 +294,146 @@ class _ExpenseEntryPageState extends State<ExpenseEntryPage> {
     );
   }
 
+  Widget _buildImportantInfo() {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF8E1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.orange.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Important Information:',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.bold,
+              color: Colors.orange,
+            ),
+          ),
+          const SizedBox(height: 6),
+          _infoLine(
+            '· Selected Expense will be deducted from their individual balance.',
+          ),
+          const SizedBox(height: 4),
+          _infoLine(
+            '· Only Daily Bazar expenses are not deducted directly from balance; '
+            'they are adjusted through the meal rate based on each member\'s meal consumption.',
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _infoLine(String text) {
+    return Text(
+      text,
+      style: TextStyle(
+        fontSize: 12,
+        color: Colors.orange.shade800,
+        height: 1.4,
+      ),
+    );
+  }
+
+  void _showSuccessPopup({required bool isManager}) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 72,
+                height: 72,
+                decoration: const BoxDecoration(
+                  color: Color(0xFFE8F5E9),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.check_circle_rounded,
+                  color: AppColors.primaryGreen,
+                  size: 44,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                isManager
+                    ? 'Expense Entry successful.'
+                    : 'Expense Entry request sent.',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              if (!isManager) ...[
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFF8E1),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.orange.shade200),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Important Information:',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.orange,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      _infoLine(
+                        '· You will receive notification when this request is accepted/rejected by Manager.',
+                      ),
+                      const SizedBox(height: 4),
+                      _infoLine(
+                        '· Approved Expense will be reflected in balance.',
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primaryGreen,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text(
+                    'Done',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildSubmitButton() {
     return SizedBox(
       width: double.infinity,
@@ -361,12 +504,8 @@ class _ExpenseEntryPageState extends State<ExpenseEntryPage> {
           });
 
       if (!mounted) return;
-      _showSnack(
-        _isManager
-            ? 'Expense added successfully!'
-            : 'Expense submitted for approval!',
-        Colors.green,
-      );
+
+      _showSuccessPopup(isManager: _isManager);
 
       setState(() {
         _selectedMembers.clear();

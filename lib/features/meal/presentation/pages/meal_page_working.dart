@@ -65,7 +65,7 @@ class _MealPageWorkingState extends State<MealPageWorking>
     }
 
     return Scaffold(
-      backgroundColor: AppColors.bgColor,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Column(
         children: [
           _buildHeader(),

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -8,6 +9,7 @@ import '../../../../core/services/firebase_auth_service.dart';
 import '../../../../core/services/firebase_mess_service.dart';
 import '../../../../core/theme/theme_provider.dart'; // provides themeNotifier
 import 'my_requests_page.dart';
+import '../../../member/presentation/pages/member_details_page.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -22,11 +24,35 @@ class _ProfilePageState extends State<ProfilePage> {
   bool _isManager = false;
   bool _isLoading = true;
   String _messId = '';
+  int _pendingCount = 0;
 
   @override
   void initState() {
     super.initState();
     _load();
+    _listenPendingCount();
+  }
+
+  StreamSubscription<QuerySnapshot>? _pendingSub;
+
+  void _listenPendingCount() {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    _pendingSub = FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .collection('invitations')
+        .where('status', isEqualTo: 'pending')
+        .snapshots()
+        .listen((snap) {
+          if (mounted) setState(() => _pendingCount = snap.docs.length);
+        });
+  }
+
+  @override
+  void dispose() {
+    _pendingSub?.cancel();
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -90,6 +116,48 @@ class _ProfilePageState extends State<ProfilePage> {
     return '${dt.day}/${dt.month}/${dt.year}';
   }
 
+  // Personal details getters
+  String get _gender => _userData?['gender'] as String? ?? '';
+  String get _profession => _userData?['profession'] as String? ?? '';
+  String get _bloodGroup => _userData?['bloodGroup'] as String? ?? '';
+  String get _dob => _userData?['dob'] as String? ?? '';
+  String get _division => _userData?['division'] as String? ?? '';
+  String get _district => _userData?['district'] as String? ?? '';
+  String get _thana => _userData?['thana'] as String? ?? '';
+
+  String get _dobFormatted {
+    if (_dob.isEmpty) return '';
+    try {
+      final dt = DateTime.parse(_dob);
+      const months = [
+        'Jan',
+        'Feb',
+        'Mar',
+        'Apr',
+        'May',
+        'Jun',
+        'Jul',
+        'Aug',
+        'Sep',
+        'Oct',
+        'Nov',
+        'Dec',
+      ];
+      return '${dt.day} ${months[dt.month - 1]}';
+    } catch (_) {
+      return _dob;
+    }
+  }
+
+  String get _homeLocation {
+    final parts = [
+      _thana,
+      _district,
+      _division,
+    ].where((s) => s.isNotEmpty).toList();
+    return parts.join(', ');
+  }
+
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
@@ -110,13 +178,13 @@ class _ProfilePageState extends State<ProfilePage> {
             ),
             backgroundColor: AppColors.primaryGreen,
             foregroundColor: Colors.white,
-        centerTitle: true,
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.only(
-            bottomLeft: Radius.circular(20),
-            bottomRight: Radius.circular(20),
-          ),
-        ),
+            centerTitle: true,
+            shape: const RoundedRectangleBorder(
+              borderRadius: BorderRadius.only(
+                bottomLeft: Radius.circular(20),
+                bottomRight: Radius.circular(20),
+              ),
+            ),
             elevation: 0,
           ),
           body: _isLoading
@@ -130,6 +198,8 @@ class _ProfilePageState extends State<ProfilePage> {
                   child: Column(
                     children: [
                       _buildProfileCard(cardColor, textColor, subColor),
+                      const SizedBox(height: 16),
+                      _buildPersonalDetailsCard(cardColor, textColor, subColor),
                       const SizedBox(height: 16),
                       _buildInfoCard(cardColor, textColor, subColor),
                       const SizedBox(height: 16),
@@ -173,37 +243,17 @@ class _ProfilePageState extends State<ProfilePage> {
       padding: const EdgeInsets.all(24),
       child: Column(
         children: [
-          Stack(
-            alignment: Alignment.bottomRight,
-            children: [
-              CircleAvatar(
-                radius: 44,
-                backgroundColor: Colors.white.withValues(alpha: 0.2),
-                child: Text(
-                  _name.isNotEmpty ? _name[0].toUpperCase() : 'U',
-                  style: const TextStyle(
-                    fontSize: 38,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
+          CircleAvatar(
+            radius: 44,
+            backgroundColor: Colors.white.withValues(alpha: 0.2),
+            child: Text(
+              _name.isNotEmpty ? _name[0].toUpperCase() : 'U',
+              style: const TextStyle(
+                fontSize: 38,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
               ),
-              GestureDetector(
-                onTap: _showEditProfileDialog,
-                child: Container(
-                  padding: const EdgeInsets.all(6),
-                  decoration: const BoxDecoration(
-                    color: Colors.white,
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.edit,
-                    size: 14,
-                    color: AppColors.primaryGreen,
-                  ),
-                ),
-              ),
-            ],
+            ),
           ),
           const SizedBox(height: 12),
           Text(
@@ -215,9 +265,10 @@ class _ProfilePageState extends State<ProfilePage> {
             ),
           ),
           const SizedBox(height: 4),
+          // Show join date instead of email
           Text(
-            _email,
-            style: const TextStyle(fontSize: 13, color: Colors.white70),
+            'Joined to Meal Manager: $_joinDate',
+            style: const TextStyle(fontSize: 12, color: Colors.white70),
           ),
           const SizedBox(height: 10),
           Row(
@@ -278,13 +329,45 @@ class _ProfilePageState extends State<ProfilePage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Account Info',
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-              color: AppColors.primaryGreen,
-            ),
+          Row(
+            children: [
+              const Icon(
+                Icons.manage_accounts_outlined,
+                size: 16,
+                color: AppColors.primaryGreen,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                'Account Info',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.primaryGreen,
+                ),
+              ),
+              const Spacer(),
+              GestureDetector(
+                onTap: _showEditProfileDialog,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: AppColors.primaryGreen),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: const Text(
+                    'Edit',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppColors.primaryGreen,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 12),
           _infoRow(
@@ -297,16 +380,205 @@ class _ProfilePageState extends State<ProfilePage> {
           _divider(),
           _infoRow(Icons.email_outlined, 'Email', _email, subColor, textColor),
           _divider(),
-          _infoRow(Icons.home_outlined, 'Mess', _messName, subColor, textColor),
+          _infoRow(
+            Icons.home_outlined,
+            'Mess Name',
+            _messName,
+            subColor,
+            textColor,
+          ),
           _divider(),
           _infoRow(Icons.tag, 'Mess ID', _messId, subColor, textColor),
           _divider(),
           _infoRow(
             Icons.calendar_today_outlined,
-            'Joined',
+            'Joined Mess',
             _joinDate,
             subColor,
             textColor,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPersonalDetailsCard(
+    Color cardColor,
+    Color textColor,
+    Color subColor,
+  ) {
+    final hasAnyData =
+        _gender.isNotEmpty ||
+        _profession.isNotEmpty ||
+        _bloodGroup.isNotEmpty ||
+        _dobFormatted.isNotEmpty ||
+        _homeLocation.isNotEmpty;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.06),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header row with Edit button
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  const Icon(
+                    Icons.person_outline,
+                    size: 16,
+                    color: AppColors.primaryGreen,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Personal Details',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.primaryGreen,
+                    ),
+                  ),
+                ],
+              ),
+              GestureDetector(
+                onTap: _showEditPersonalDetailsDialog,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: AppColors.primaryGreen),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: const Text(
+                    'Edit',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppColors.primaryGreen,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          if (!hasAnyData)
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Text(
+                  'Tap Edit to add your personal details',
+                  style: TextStyle(fontSize: 13, color: subColor),
+                ),
+              ),
+            )
+          else
+            // Grid 2 style layout
+            GridView.count(
+              crossAxisCount: 2,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              crossAxisSpacing: 10,
+              mainAxisSpacing: 10,
+              childAspectRatio: 2.8,
+              children: [
+                if (_gender.isNotEmpty)
+                  _detailGridItem(
+                    Icons.wc,
+                    'Gender',
+                    _gender,
+                    textColor,
+                    subColor,
+                  ),
+                if (_profession.isNotEmpty)
+                  _detailGridItem(
+                    Icons.work_outline,
+                    'Profession',
+                    _profession,
+                    textColor,
+                    subColor,
+                  ),
+                if (_bloodGroup.isNotEmpty)
+                  _detailGridItem(
+                    Icons.bloodtype_outlined,
+                    'Blood Group',
+                    _bloodGroup,
+                    textColor,
+                    subColor,
+                  ),
+                if (_dobFormatted.isNotEmpty)
+                  _detailGridItem(
+                    Icons.cake_outlined,
+                    'Birth Date',
+                    _dobFormatted,
+                    textColor,
+                    subColor,
+                  ),
+                if (_homeLocation.isNotEmpty)
+                  _detailGridItem(
+                    Icons.location_on_outlined,
+                    'Home',
+                    _homeLocation,
+                    textColor,
+                    subColor,
+                    fullWidth: true,
+                  ),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _detailGridItem(
+    IconData icon,
+    String label,
+    String value,
+    Color textColor,
+    Color subColor, {
+    bool fullWidth = false,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: AppColors.primaryGreen.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 16, color: AppColors.primaryGreen),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(label, style: TextStyle(fontSize: 10, color: subColor)),
+                Text(
+                  value,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: textColor,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -372,14 +644,14 @@ class _ProfilePageState extends State<ProfilePage> {
       child: Column(
         children: [
           _actionTile(
-            icon: Icons.bar_chart_rounded,
-            label: 'Meal Overview',
-            subtitle: 'View your monthly meal summary',
+            icon: Icons.receipt_long_rounded,
+            label: 'Meals & Transactions',
+            subtitle: 'View your monthly meals & transactions',
             color: Colors.blue,
             cardColor: cardColor,
             textColor: textColor,
             subColor: subColor,
-            onTap: _showMealOverview,
+            onTap: _showMealsAndTransactions,
           ),
           _divider(),
           _actionTile(
@@ -417,6 +689,7 @@ class _ProfilePageState extends State<ProfilePage> {
             cardColor: cardColor,
             textColor: textColor,
             subColor: subColor,
+            badge: _pendingCount,
             onTap: () => Navigator.push(
               context,
               MaterialPageRoute(builder: (_) => const MyRequestsPage()),
@@ -504,6 +777,7 @@ class _ProfilePageState extends State<ProfilePage> {
     required Color subColor,
     required VoidCallback onTap,
     Widget? trailing,
+    int badge = 0,
   }) {
     return InkWell(
       onTap: onTap,
@@ -512,13 +786,42 @@ class _ProfilePageState extends State<ProfilePage> {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         child: Row(
           children: [
-            Container(
-              padding: const EdgeInsets.all(9),
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(icon, color: color, size: 20),
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(9),
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(icon, color: color, size: 20),
+                ),
+                if (badge > 0)
+                  Positioned(
+                    top: -4,
+                    right: -4,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 4,
+                        vertical: 1,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.red,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.white, width: 1.5),
+                      ),
+                      child: Text(
+                        badge > 99 ? '99+' : '$badge',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 9,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
             ),
             const SizedBox(width: 14),
             Expanded(
@@ -558,6 +861,8 @@ class _ProfilePageState extends State<ProfilePage> {
     final nameCtrl = TextEditingController(text: _name);
     final mobileCtrl = TextEditingController(text: _mobile);
     bool saving = false;
+    String? nameError;
+    String? mobileError;
 
     showDialog(
       context: context,
@@ -575,27 +880,56 @@ class _ProfilePageState extends State<ProfilePage> {
             children: [
               TextField(
                 controller: nameCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'Name',
-                  prefixIcon: Icon(Icons.person_outline),
+                onChanged: (_) => setS(() => nameError = null),
+                decoration: InputDecoration(
+                  labelText: 'Name *',
+                  prefixIcon: const Icon(Icons.person_outline),
+                  errorText: nameError,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(
+                      color: AppColors.primaryGreen,
+                      width: 2,
+                    ),
+                  ),
                 ),
               ),
               const SizedBox(height: 12),
               TextField(
                 controller: mobileCtrl,
                 keyboardType: TextInputType.phone,
-                decoration: const InputDecoration(
-                  labelText: 'Mobile',
-                  prefixIcon: Icon(Icons.phone_outlined),
+                onChanged: (_) => setS(() => mobileError = null),
+                decoration: InputDecoration(
+                  labelText: 'Mobile *',
+                  prefixIcon: const Icon(Icons.phone_outlined),
+                  errorText: mobileError,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(
+                      color: AppColors.primaryGreen,
+                      width: 2,
+                    ),
+                  ),
                 ),
               ),
               const SizedBox(height: 12),
               TextField(
                 enabled: false,
                 controller: TextEditingController(text: _email),
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText: 'Email (read-only)',
-                  prefixIcon: Icon(Icons.email_outlined),
+                  prefixIcon: const Icon(Icons.email_outlined),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  filled: true,
+                  fillColor: Colors.grey.shade100,
                 ),
               ),
             ],
@@ -612,10 +946,57 @@ class _ProfilePageState extends State<ProfilePage> {
               onPressed: saving
                   ? null
                   : () async {
+                      final name = nameCtrl.text.trim();
+                      final mobile = mobileCtrl.text.trim();
+
+                      // Validate mandatory fields
+                      bool hasError = false;
+                      if (name.isEmpty) {
+                        setS(() => nameError = 'Name is required');
+                        hasError = true;
+                      }
+                      if (mobile.isEmpty) {
+                        setS(() => mobileError = 'Mobile is required');
+                        hasError = true;
+                      } else if (mobile.length != 11) {
+                        setS(() => mobileError = 'Must be 11 digits');
+                        hasError = true;
+                      }
+                      if (hasError) return;
+
                       setS(() => saving = true);
+
+                      // Check duplicate mobile (only if changed)
+                      if (mobile != _mobile) {
+                        final uid = FirebaseAuthService.getUserId() ?? '';
+                        final variants = [mobile];
+                        if (mobile.startsWith('0')) variants.add('+88$mobile');
+                        if (mobile.startsWith('+88'))
+                          variants.add(mobile.substring(3));
+
+                        for (final v in variants) {
+                          final snap = await FirebaseFirestore.instance
+                              .collection('users')
+                              .where('mobile', isEqualTo: v)
+                              .limit(1)
+                              .get();
+                          final docs = snap.docs
+                              .where((d) => d.id != uid)
+                              .toList();
+                          if (docs.isNotEmpty) {
+                            setS(() {
+                              saving = false;
+                              mobileError =
+                                  'This Mobile Number is already using by another user';
+                            });
+                            return;
+                          }
+                        }
+                      }
+
                       final ok = await FirebaseAuthService.updateUserData({
-                        'name': nameCtrl.text.trim(),
-                        'mobile': mobileCtrl.text.trim(),
+                        'name': name,
+                        'mobile': mobile,
                       });
                       if (ctx.mounted) Navigator.pop(ctx);
                       if (ok) {
@@ -647,6 +1028,351 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
+  void _showEditPersonalDetailsDialog() {
+    // Pre-fill from existing data
+    String? gender = _gender.isEmpty ? null : _gender;
+    String? profession = _profession.isEmpty ? null : _profession;
+    String? bloodGroup = _bloodGroup.isEmpty ? null : _bloodGroup;
+    DateTime? dob;
+    if (_dob.isNotEmpty) {
+      try {
+        dob = DateTime.parse(_dob);
+      } catch (_) {}
+    }
+    String? division = _division.isEmpty ? null : _division;
+    String? district = _district.isEmpty ? null : _district;
+    String? thana = _thana.isEmpty ? null : _thana;
+    bool saving = false;
+
+    const genders = ['Male', 'Female', 'Other'];
+    const professions = ['Student', 'Job Holder', 'Business', 'Other'];
+    const bloodGroups = [
+      'A+',
+      'A-',
+      'B+',
+      'B-',
+      'O+',
+      'O-',
+      'AB+',
+      'AB-',
+      'Unknown',
+    ];
+    const Map<String, List<String>> divisionDistricts = {
+      'Barisal': [
+        'Barguna',
+        'Barisal',
+        'Bhola',
+        'Jhalokati',
+        'Patuakhali',
+        'Pirojpur',
+      ],
+      'Chittagong': [
+        'Bandarban',
+        'Brahmanbaria',
+        'Chandpur',
+        'Chattogram',
+        "Cox's Bazar",
+        'Cumilla',
+        'Feni',
+        'Khagrachhari',
+        'Lakshmipur',
+        'Noakhali',
+        'Rangamati',
+      ],
+      'Dhaka': [
+        'Dhaka',
+        'Faridpur',
+        'Gazipur',
+        'Gopalganj',
+        'Kishoreganj',
+        'Madaripur',
+        'Manikganj',
+        'Munshiganj',
+        'Narayanganj',
+        'Narsingdi',
+        'Rajbari',
+        'Shariatpur',
+        'Tangail',
+      ],
+      'Khulna': [
+        'Bagerhat',
+        'Chuadanga',
+        'Jessore',
+        'Jhenaidah',
+        'Khulna',
+        'Kushtia',
+        'Magura',
+        'Meherpur',
+        'Narail',
+        'Satkhira',
+      ],
+      'Mymensingh': ['Jamalpur', 'Mymensingh', 'Netrokona', 'Sherpur'],
+      'Rajshahi': [
+        'Bogura',
+        'Chapainawabganj',
+        'Joypurhat',
+        'Naogaon',
+        'Natore',
+        'Pabna',
+        'Rajshahi',
+        'Sirajganj',
+      ],
+      'Rangpur': [
+        'Dinajpur',
+        'Gaibandha',
+        'Kurigram',
+        'Lalmonirhat',
+        'Nilphamari',
+        'Panchagarh',
+        'Rangpur',
+        'Thakurgaon',
+      ],
+      'Sylhet': ['Habiganj', 'Moulvibazar', 'Sunamganj', 'Sylhet'],
+    };
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setS) {
+          final districts = division != null
+              ? (divisionDistricts[division] ?? [])
+              : <String>[];
+          return AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: const Text(
+              'Personal Details',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _dialogDropdown(
+                    'Gender',
+                    genders,
+                    gender,
+                    Icons.wc,
+                    (v) => setS(() => gender = v),
+                  ),
+                  const SizedBox(height: 10),
+                  _dialogDropdown(
+                    'Profession',
+                    professions,
+                    profession,
+                    Icons.work_outline,
+                    (v) => setS(() => profession = v),
+                  ),
+                  const SizedBox(height: 10),
+                  _dialogDropdown(
+                    'Blood Group',
+                    bloodGroups,
+                    bloodGroup,
+                    Icons.bloodtype_outlined,
+                    (v) => setS(() => bloodGroup = v),
+                  ),
+                  const SizedBox(height: 10),
+                  // DOB picker
+                  InkWell(
+                    onTap: () async {
+                      final picked = await showDatePicker(
+                        context: ctx,
+                        initialDate: dob ?? DateTime(2000),
+                        firstDate: DateTime(1950),
+                        lastDate: DateTime.now(),
+                        builder: (c, child) => Theme(
+                          data: Theme.of(c).copyWith(
+                            colorScheme: const ColorScheme.light(
+                              primary: AppColors.primaryGreen,
+                            ),
+                          ),
+                          child: child!,
+                        ),
+                      );
+                      if (picked != null) setS(() => dob = picked);
+                    },
+                    borderRadius: BorderRadius.circular(10),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 14,
+                      ),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.grey.shade300),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.cake_outlined,
+                            size: 18,
+                            color: Colors.grey.shade600,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              dob != null
+                                  ? '${dob!.day}/${dob!.month}/${dob!.year}'
+                                  : 'Birth Date',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: dob != null
+                                    ? AppColors.textDark
+                                    : Colors.grey.shade500,
+                              ),
+                            ),
+                          ),
+                          Icon(
+                            Icons.arrow_drop_down,
+                            color: Colors.grey.shade500,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  _dialogDropdown(
+                    'Division',
+                    divisionDistricts.keys.toList(),
+                    division,
+                    Icons.map_outlined,
+                    (v) {
+                      setS(() {
+                        division = v;
+                        district = null;
+                        thana = null;
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 10),
+                  _dialogDropdown(
+                    'District',
+                    districts,
+                    district,
+                    Icons.location_city_outlined,
+                    division == null
+                        ? null
+                        : (v) => setS(() {
+                            district = v;
+                            thana = null;
+                          }),
+                    hint: division == null
+                        ? 'Select division first'
+                        : 'Select district',
+                  ),
+                  const SizedBox(height: 10),
+                  _dialogDropdown(
+                    'Thana / Upazila',
+                    district != null ? ['${district} Sadar', 'Other'] : [],
+                    thana,
+                    Icons.place_outlined,
+                    district == null ? null : (v) => setS(() => thana = v),
+                    hint: district == null
+                        ? 'Select district first'
+                        : 'Select thana',
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primaryGreen,
+                ),
+                onPressed: saving
+                    ? null
+                    : () async {
+                        setS(() => saving = true);
+                        final ok = await FirebaseAuthService.updateUserData({
+                          'gender': gender,
+                          'profession': profession,
+                          'bloodGroup': bloodGroup,
+                          'dob': dob?.toIso8601String(),
+                          'division': division,
+                          'district': district,
+                          'thana': thana,
+                        });
+                        if (ctx.mounted) Navigator.pop(ctx);
+                        if (ok) {
+                          await _load();
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Personal details updated'),
+                                backgroundColor: Colors.green,
+                              ),
+                            );
+                          }
+                        }
+                      },
+                child: saving
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Text('Save', style: TextStyle(color: Colors.white)),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _dialogDropdown(
+    String label,
+    List<String> items,
+    String? value,
+    IconData icon,
+    void Function(String?)? onChanged, {
+    String? hint,
+  }) {
+    return DropdownButtonFormField<String>(
+      value: value,
+      decoration: InputDecoration(
+        labelText: label,
+        prefixIcon: Icon(icon, size: 18),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 12,
+          vertical: 10,
+        ),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide(color: Colors.grey.shade300),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide(color: Colors.grey.shade300),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: AppColors.primaryGreen, width: 2),
+        ),
+      ),
+      hint: hint != null
+          ? Text(hint, style: const TextStyle(fontSize: 13))
+          : null,
+      items: items
+          .map(
+            (e) => DropdownMenuItem(
+              value: e,
+              child: Text(e, style: const TextStyle(fontSize: 13)),
+            ),
+          )
+          .toList(),
+      onChanged: onChanged,
+    );
+  }
+
   void _showChangePasswordDialog() {
     final currentCtrl = TextEditingController();
     final newCtrl = TextEditingController();
@@ -658,134 +1384,211 @@ class _ProfilePageState extends State<ProfilePage> {
     showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setS) => AlertDialog(
+        builder: (ctx, setS) => Dialog(
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
-          title: const Text(
-            'Change Password',
-            style: TextStyle(fontWeight: FontWeight.bold),
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 20,
+            vertical: 24,
           ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: currentCtrl,
-                obscureText: !showCurrent,
-                decoration: InputDecoration(
-                  labelText: 'Current Password',
-                  prefixIcon: const Icon(Icons.lock_outline),
-                  suffixIcon: IconButton(
-                    icon: Icon(
-                      showCurrent ? Icons.visibility_off : Icons.visibility,
-                    ),
-                    onPressed: () => setS(() => showCurrent = !showCurrent),
-                  ),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Change Password',
+                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
                 ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: newCtrl,
-                obscureText: !showNew,
-                decoration: InputDecoration(
-                  labelText: 'New Password',
-                  prefixIcon: const Icon(Icons.lock_outline),
-                  suffixIcon: IconButton(
-                    icon: Icon(
-                      showNew ? Icons.visibility_off : Icons.visibility,
-                    ),
-                    onPressed: () => setS(() => showNew = !showNew),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: confirmCtrl,
-                obscureText: true,
-                decoration: const InputDecoration(
-                  labelText: 'Confirm New Password',
-                  prefixIcon: Icon(Icons.lock_outline),
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primaryGreen,
-              ),
-              onPressed: saving
-                  ? null
-                  : () async {
-                      if (newCtrl.text != confirmCtrl.text) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Passwords do not match'),
-                            backgroundColor: Colors.red,
-                          ),
-                        );
-                        return;
-                      }
-                      if (newCtrl.text.length < 6) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                              'Password must be at least 6 characters',
-                            ),
-                            backgroundColor: Colors.red,
-                          ),
-                        );
-                        return;
-                      }
-                      setS(() => saving = true);
-                      try {
-                        final user = FirebaseAuthService.currentUser;
-                        if (user == null) return;
-                        final cred = EmailAuthProvider.credential(
-                          email: user.email!,
-                          password: currentCtrl.text,
-                        );
-                        await user.reauthenticateWithCredential(cred);
-                        await user.updatePassword(newCtrl.text);
-                        if (ctx.mounted) Navigator.pop(ctx);
-                        if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Password changed successfully'),
-                              backgroundColor: Colors.green,
-                            ),
-                          );
-                        }
-                      } on FirebaseAuthException catch (e) {
-                        setS(() => saving = false);
-                        if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                e.message ?? 'Failed to change password',
-                              ),
-                              backgroundColor: Colors.red,
-                            ),
-                          );
-                        }
-                      }
-                    },
-              child: saving
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
+                const SizedBox(height: 16),
+                TextField(
+                  controller: currentCtrl,
+                  obscureText: !showCurrent,
+                  style: const TextStyle(fontSize: 13),
+                  decoration: InputDecoration(
+                    labelText: 'Current Password',
+                    labelStyle: const TextStyle(fontSize: 13),
+                    prefixIcon: const Icon(Icons.lock_outline, size: 18),
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        showCurrent ? Icons.visibility_off : Icons.visibility,
+                        size: 18,
                       ),
-                    )
-                  : const Text('Change', style: TextStyle(color: Colors.white)),
+                      onPressed: () => setS(() => showCurrent = !showCurrent),
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 12,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(
+                        color: AppColors.primaryGreen,
+                        width: 2,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: newCtrl,
+                  obscureText: !showNew,
+                  style: const TextStyle(fontSize: 13),
+                  decoration: InputDecoration(
+                    labelText: 'New Password',
+                    labelStyle: const TextStyle(fontSize: 13),
+                    prefixIcon: const Icon(Icons.lock_outline, size: 18),
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        showNew ? Icons.visibility_off : Icons.visibility,
+                        size: 18,
+                      ),
+                      onPressed: () => setS(() => showNew = !showNew),
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 12,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(
+                        color: AppColors.primaryGreen,
+                        width: 2,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: confirmCtrl,
+                  obscureText: true,
+                  style: const TextStyle(fontSize: 13),
+                  decoration: InputDecoration(
+                    labelText: 'Confirm New Password',
+                    labelStyle: const TextStyle(fontSize: 13),
+                    prefixIcon: const Icon(Icons.lock_outline, size: 18),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 12,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(
+                        color: AppColors.primaryGreen,
+                        width: 2,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      child: const Text('Cancel'),
+                    ),
+                    const SizedBox(width: 8),
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primaryGreen,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 10,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      onPressed: saving
+                          ? null
+                          : () async {
+                              if (newCtrl.text != confirmCtrl.text) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Passwords do not match'),
+                                    backgroundColor: Colors.red,
+                                  ),
+                                );
+                                return;
+                              }
+                              if (newCtrl.text.length < 6) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      'Password must be at least 6 characters',
+                                    ),
+                                    backgroundColor: Colors.red,
+                                  ),
+                                );
+                                return;
+                              }
+                              setS(() => saving = true);
+                              try {
+                                final user = FirebaseAuthService.currentUser;
+                                if (user == null) return;
+                                final cred = EmailAuthProvider.credential(
+                                  email: user.email!,
+                                  password: currentCtrl.text,
+                                );
+                                await user.reauthenticateWithCredential(cred);
+                                await user.updatePassword(newCtrl.text);
+                                if (ctx.mounted) Navigator.pop(ctx);
+                                if (mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        'Password changed successfully',
+                                      ),
+                                      backgroundColor: Colors.green,
+                                    ),
+                                  );
+                                }
+                              } on FirebaseAuthException catch (e) {
+                                setS(() => saving = false);
+                                if (mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        e.message ??
+                                            'Failed to change password',
+                                      ),
+                                      backgroundColor: Colors.red,
+                                    ),
+                                  );
+                                }
+                              }
+                            },
+                      child: saving
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Text(
+                              'Change',
+                              style: TextStyle(color: Colors.white),
+                            ),
+                    ),
+                  ],
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
@@ -928,15 +1731,12 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  void _showMealOverview() {
+  void _showMealsAndTransactions() {
+    final uid = FirebaseAuthService.getUserId() ?? '';
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => MealOverviewPage(
-          messId: _messId,
-          memberName: _name,
-          memberId: FirebaseAuthService.getUserId() ?? '',
-        ),
+        builder: (_) => MemberDetailsPage(memberId: uid, memberName: _name),
       ),
     );
   }

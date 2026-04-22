@@ -66,7 +66,7 @@ class _DebugTestAccountPageState extends State<DebugTestAccountPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.bgColor,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         title: const Text('Create Test Accounts'),
         backgroundColor: AppColors.primaryGreen,

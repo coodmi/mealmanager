@@ -1,0 +1,13 @@
+{
+  "enabled": true,
+  "name": "Auto Deploy to Firebase",
+  "description": "Automatically builds the APK and deploys to Firebase App Distribution when Dart files are saved, sending an email to asifmollik93@gmail.com",
+  "version": "1",
+  "when": {
+    "type": "userTriggered"
+  },
+  "then": {
+    "type": "runCommand",
+    "command": "./auto_deploy.sh"
+  }
+}

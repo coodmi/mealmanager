@@ -34,7 +34,8 @@ service cloud.firestore {
 
     // ─── USERS ───────────────────────────────────────────────────────────────
     match /users/{userId} {
-      allow read: if isAuth();
+      // Allow reading for duplicate email/phone checks during registration
+      allow read: if true;
       allow create: if isAuth() && request.auth.uid == userId;
       allow update: if isAuth() && (request.auth.uid == userId || isSystemAdmin());
       allow delete: if isSystemAdmin();
@@ -104,6 +105,14 @@ service cloud.firestore {
         allow update: if isAuth() && (isManager() || isSystemAdmin());
         allow delete: if isAuth() && (isManager() || isSystemAdmin() || request.auth.uid == reqId);
       }
+
+      // ─── CHAT MESSAGES subcollection ───────────────────────────────────────
+      match /chatMessages/{msgId} {
+        allow read: if isAuth() && isMemberOf(messId);
+        allow create: if isAuth() && isMemberOf(messId);
+        allow update: if isAuth() && (isManager() || isSystemAdmin() || request.auth.uid == resource.data.senderId);
+        allow delete: if isAuth() && (isManager() || isSystemAdmin());
+      }
     }
 
     // ─── SYSTEM ADMIN COLLECTIONS ────────────────────────────────────────────
@@ -114,6 +123,12 @@ service cloud.firestore {
 
     match /deleted_messes/{messId} {
       allow read, write: if isAuth() && isSystemAdmin();
+    }
+
+    match /deleted_users/{userId} {
+      // Allow reading for registration checks
+      allow read: if true;
+      allow write: if isAuth() && isSystemAdmin();
     }
 
     match /systemLogs/{logId} {

@@ -51,7 +51,7 @@ class _MealPageFirebaseState extends State<MealPageFirebase>
     }
 
     return Scaffold(
-      backgroundColor: AppColors.bgColor,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Column(
         children: [
           _buildHeader(),

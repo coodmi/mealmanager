@@ -17,7 +17,7 @@ class _FirebaseTestPageState extends State<FirebaseTestPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.bgColor,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         title: const Text('Firebase Integration Test'),
         backgroundColor: AppColors.primaryGreen,

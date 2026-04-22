@@ -92,7 +92,7 @@ class _MemberPageState extends State<MemberPage> {
     }
 
     return Scaffold(
-      backgroundColor: AppColors.bgColor,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: body,
       floatingActionButton: fab,
     );

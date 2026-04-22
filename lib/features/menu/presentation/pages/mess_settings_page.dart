@@ -4,10 +4,12 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:go_router/go_router.dart';
+import 'package:share_plus/share_plus.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../../core/utils/permission_utils.dart';
 import '../../../member/presentation/pages/member_page.dart';
+import '../../../task/presentation/pages/task_schedule_page.dart';
 import 'subscription_page.dart';
 
 class MessSettingsPage extends StatefulWidget {
@@ -28,6 +30,8 @@ class _MessSettingsPageState extends State<MessSettingsPage> {
   String _mealEntryMode = 'manual';
   bool _isManager = false;
   bool _isFirstSetup = false; // true when coming from mess creation
+  String? _selectedDistrict;
+  String? _selectedDivision;
 
   @override
   void initState() {
@@ -82,6 +86,8 @@ class _MessSettingsPageState extends State<MessSettingsPage> {
           _memberCount = membersSnap.docs.length;
           _isManager = role == 'manager' || role == 'admin';
           _isFirstSetup = !setupComplete;
+          _selectedDistrict = data['district'] as String?;
+          _selectedDivision = data['division'] as String?;
           _isLoading = false;
         });
       }
@@ -113,6 +119,8 @@ class _MessSettingsPageState extends State<MessSettingsPage> {
           .update({
             'name': _nameCtrl.text.trim(),
             'address': _addressCtrl.text.trim(),
+            'district': _selectedDistrict ?? '',
+            'division': _selectedDivision ?? '',
             'setupComplete': true,
           });
       if (mounted) {
@@ -170,7 +178,7 @@ class _MessSettingsPageState extends State<MessSettingsPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FA),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         title: Text(
           _isFirstSetup ? 'Setup Your Mess' : 'Mess Settings',
@@ -298,7 +306,7 @@ class _MessSettingsPageState extends State<MessSettingsPage> {
               Expanded(
                 child: _modeOption(
                   label: 'Manual',
-                  subtitle: 'Members enter meals themselves',
+                  subtitle: 'Manager enter meals manually daily',
                   icon: Icons.edit_note,
                   selected: _mealEntryMode == 'manual',
                   onTap: () => _setMealEntryMode('manual'),
@@ -391,6 +399,14 @@ class _MessSettingsPageState extends State<MessSettingsPage> {
           _field(_nameCtrl, 'Mess Name', Icons.home_work),
           const SizedBox(height: 14),
           _field(_addressCtrl, 'Address (optional)', Icons.location_on),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(child: _districtDropdown()),
+              const SizedBox(width: 12),
+              Expanded(child: _divisionDropdown()),
+            ],
+          ),
           const SizedBox(height: 20),
           SizedBox(
             width: double.infinity,
@@ -428,55 +444,100 @@ class _MessSettingsPageState extends State<MessSettingsPage> {
 
   Widget _buildMessIdCard() {
     return _card(
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: Colors.blue.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: const Icon(Icons.qr_code, color: Colors.blue, size: 22),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Mess ID',
-                  style: TextStyle(fontSize: 13, color: AppColors.textLight),
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.blue.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(10),
                 ),
-                Text(
-                  _messId,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 1,
+                child: const Icon(Icons.qr_code, color: Colors.blue, size: 22),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Mess ID',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: AppColors.textLight,
+                      ),
+                    ),
+                    Text(
+                      _messId,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.copy, color: Colors.blue),
+                tooltip: 'Copy ID',
+                onPressed: () async {
+                  await Clipboard.setData(ClipboardData(text: _messId));
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Mess ID copied!'),
+                        behavior: SnackBarBehavior.floating,
+                        duration: Duration(seconds: 2),
+                      ),
+                    );
+                  }
+                },
+              ),
+              IconButton(
+                icon: const Icon(Icons.share_rounded, color: Colors.green),
+                tooltip: 'Share',
+                onPressed: () => _shareMessId(),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.blue.withValues(alpha: 0.06),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.info_outline, size: 14, color: Colors.blue),
+                const SizedBox(width: 6),
+                const Expanded(
+                  child: Text(
+                    'Others can join your mess using this ID',
+                    style: TextStyle(fontSize: 12, color: Colors.blue),
                   ),
                 ),
               ],
             ),
           ),
-          IconButton(
-            icon: const Icon(Icons.copy, color: Colors.blue),
-            tooltip: 'Copy ID',
-            onPressed: () async {
-              await Clipboard.setData(ClipboardData(text: _messId));
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Mess ID copied!'),
-                    behavior: SnackBarBehavior.floating,
-                    duration: Duration(seconds: 2),
-                  ),
-                );
-              }
-            },
-          ),
         ],
       ),
     );
+  }
+
+  void _shareMessId() {
+    final messName = _nameCtrl.text.trim().isEmpty
+        ? 'আমাদের মেস'
+        : _nameCtrl.text.trim();
+    final shareText =
+        'হাই 👋\n\nআপনাকে আমাদের "$messName" মেসে যোগ দেওয়ার জন্য আমন্ত্রণ জানানো হচ্ছে।\n\n'
+        '🏠 Mess ID: $_messId\n\n'
+        'Meal Manager অ্যাপে লগিন করে Join Mess অপশন থেকে এই Mess ID দিয়ে রিকুয়েস্ট পাঠালেই '
+        'মিলের ম্যানেজার আপনাকে যুক্ত করে নিবে 👍';
+    Share.share(shareText, subject: 'Join $messName Mess');
   }
 
   Widget _buildQuickLinks() {
@@ -506,6 +567,17 @@ class _MessSettingsPageState extends State<MessSettingsPage> {
             title: 'Bazar Schedule',
             subtitle: 'Set up bazar duty rotation',
             onTap: () => _showBazarScheduleDialog(),
+          ),
+          const Divider(height: 1),
+          _linkTile(
+            icon: Icons.task_alt_rounded,
+            color: Colors.teal,
+            title: 'Task Schedule',
+            subtitle: 'Assign daily tasks to members',
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const TaskSchedulePage()),
+            ),
           ),
           const Divider(height: 1),
           _linkTile(
@@ -947,6 +1019,178 @@ class _MessSettingsPageState extends State<MessSettingsPage> {
         );
       }
     }
+  }
+
+  // ── Bangladesh Divisions & Districts ──────────────────────────────────────
+
+  static const List<String> _divisions = [
+    'Dhaka',
+    'Chittagong',
+    'Rajshahi',
+    'Khulna',
+    'Barisal',
+    'Sylhet',
+    'Rangpur',
+    'Mymensingh',
+  ];
+
+  static const Map<String, List<String>> _districtsByDivision = {
+    'Dhaka': [
+      'Dhaka',
+      'Gazipur',
+      'Narayanganj',
+      'Narsingdi',
+      'Manikganj',
+      'Munshiganj',
+      'Rajbari',
+      'Shariatpur',
+      'Madaripur',
+      'Gopalganj',
+      'Faridpur',
+      'Kishoreganj',
+      'Tangail',
+    ],
+    'Chittagong': [
+      'Chittagong',
+      'Cox\'s Bazar',
+      'Comilla',
+      'Feni',
+      'Noakhali',
+      'Lakshmipur',
+      'Chandpur',
+      'Brahmanbaria',
+      'Rangamati',
+      'Khagrachhari',
+      'Bandarban',
+    ],
+    'Rajshahi': [
+      'Rajshahi',
+      'Natore',
+      'Naogaon',
+      'Chapainawabganj',
+      'Pabna',
+      'Sirajganj',
+      'Bogura',
+      'Joypurhat',
+    ],
+    'Khulna': [
+      'Khulna',
+      'Bagerhat',
+      'Satkhira',
+      'Jessore',
+      'Narail',
+      'Magura',
+      'Jhenaidah',
+      'Kushtia',
+      'Chuadanga',
+      'Meherpur',
+    ],
+    'Barisal': [
+      'Barisal',
+      'Bhola',
+      'Patuakhali',
+      'Pirojpur',
+      'Jhalokati',
+      'Barguna',
+    ],
+    'Sylhet': ['Sylhet', 'Moulvibazar', 'Habiganj', 'Sunamganj'],
+    'Rangpur': [
+      'Rangpur',
+      'Dinajpur',
+      'Thakurgaon',
+      'Panchagarh',
+      'Nilphamari',
+      'Lalmonirhat',
+      'Kurigram',
+      'Gaibandha',
+    ],
+    'Mymensingh': ['Mymensingh', 'Jamalpur', 'Sherpur', 'Netrokona'],
+  };
+
+  // All districts sorted alphabetically (for when no division is selected)
+  static final List<String> _allDistricts =
+      _districtsByDivision.values.expand((d) => d).toList()..sort();
+
+  List<String> get _availableDistricts {
+    if (_selectedDivision != null && _selectedDivision!.isNotEmpty) {
+      return _districtsByDivision[_selectedDivision!] ?? _allDistricts;
+    }
+    return _allDistricts;
+  }
+
+  Widget _districtDropdown() {
+    final districts = _availableDistricts;
+    // If current district not in available list, reset
+    final currentDistrict = districts.contains(_selectedDistrict)
+        ? _selectedDistrict
+        : null;
+
+    return DropdownButtonFormField<String>(
+      value: currentDistrict,
+      isExpanded: true,
+      decoration: InputDecoration(
+        labelText: 'District',
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 12,
+          vertical: 14,
+        ),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: AppColors.primaryGreen, width: 2),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.grey.shade200),
+        ),
+      ),
+      hint: const Text('District', style: TextStyle(fontSize: 13)),
+      items: districts
+          .map((d) => DropdownMenuItem(value: d, child: Text(d)))
+          .toList(),
+      onChanged: _isManager
+          ? (v) => setState(() => _selectedDistrict = v)
+          : null,
+    );
+  }
+
+  Widget _divisionDropdown() {
+    return DropdownButtonFormField<String>(
+      value: _divisions.contains(_selectedDivision) ? _selectedDivision : null,
+      isExpanded: true,
+      decoration: InputDecoration(
+        labelText: 'Division',
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 12,
+          vertical: 14,
+        ),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: AppColors.primaryGreen, width: 2),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.grey.shade200),
+        ),
+      ),
+      hint: const Text('Division', style: TextStyle(fontSize: 13)),
+      items: _divisions
+          .map((d) => DropdownMenuItem(value: d, child: Text(d)))
+          .toList(),
+      onChanged: _isManager
+          ? (v) => setState(() {
+              _selectedDivision = v;
+              // Reset district if it doesn't belong to new division
+              if (v != null) {
+                final dists = _districtsByDivision[v] ?? [];
+                if (!dists.contains(_selectedDistrict)) {
+                  _selectedDistrict = null;
+                }
+              }
+            })
+          : null,
+    );
   }
 
   Widget _card({required Widget child}) {

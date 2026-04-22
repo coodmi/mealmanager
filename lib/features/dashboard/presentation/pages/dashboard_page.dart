@@ -14,6 +14,12 @@ import '../../../menu/presentation/pages/mess_requests_page.dart';
 import '../../../menu/presentation/pages/mess_settings_page.dart';
 import '../../../menu/presentation/pages/menu_page.dart';
 import '../../../deposit/presentation/pages/deposit_page.dart';
+import '../widgets/ads_banner.dart';
+import '../widgets/ads_config.dart';
+import '../../../bazar/presentation/pages/bazar_schedule_page.dart';
+import '../../../task/presentation/pages/task_schedule_page.dart';
+import '../../../chat/services/chat_service.dart';
+import '../../../../core/services/auto_meal_service.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
@@ -47,6 +53,21 @@ class _DashboardPageState extends State<DashboardPage> {
   bool _invitationChecked = false;
   DateTime? _lastBackPressTime;
 
+  // Today's schedule data
+  double _todayMyMeals = 0;
+  double _todayMessMeals = 0;
+  int _todayMembersCount = 0;
+  List<String> _todayBazarNames = [];
+  List<String> _tomorrowBazarNames = [];
+  List<Map<String, dynamic>> _todayTasks = [];
+  List<Map<String, dynamic>> _tomorrowTasks = [];
+
+  // Chat unread count
+  int _chatUnreadCount = 0;
+
+  // Pending requests count (invitations)
+  int _pendingRequestCount = 0;
+
   // Real-time stream subscriptions
   final List<StreamSubscription<dynamic>> _subs = [];
 
@@ -57,6 +78,8 @@ class _DashboardPageState extends State<DashboardPage> {
     _currentMonth = '${_monthName(now.month)} ${now.year}';
     // ignore: unawaited_futures
     DeletionScheduler.runIfNeeded();
+    // ignore: unawaited_futures
+    AutoMealService.runIfNeeded();
     _initRealtimeDashboard();
     _checkPendingInvitations();
   }
@@ -490,6 +513,178 @@ class _DashboardPageState extends State<DashboardPage> {
               _recalcMealRate();
             }),
       );
+
+      // ── Today's meals (real-time) ─────────────────────────────────────────
+      final todayStr =
+          '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+      _subs.add(
+        FirebaseFirestore.instance
+            .collection('messes')
+            .doc(messId)
+            .collection('meals')
+            .where(
+              'date',
+              isGreaterThanOrEqualTo: Timestamp.fromDate(
+                DateTime(now.year, now.month, now.day),
+              ),
+            )
+            .where(
+              'date',
+              isLessThan: Timestamp.fromDate(
+                DateTime(now.year, now.month, now.day + 1),
+              ),
+            )
+            .snapshots()
+            .listen((snap) {
+              if (!mounted) return;
+              double myT = 0, messT = 0;
+              final memberSet = <String>{};
+              for (final doc in snap.docs) {
+                final d = doc.data();
+                final count = (d['count'] as num?)?.toDouble() ?? 1.0;
+                messT += count;
+                memberSet.add(d['memberId'] as String? ?? '');
+                if (d['memberId'] == uid) myT += count;
+              }
+              setState(() {
+                _todayMyMeals = myT;
+                _todayMessMeals = messT;
+                _todayMembersCount = memberSet.length;
+              });
+            }),
+      );
+
+      // ── Bazar schedule (real-time) ────────────────────────────────────────
+      _subs.add(
+        FirebaseFirestore.instance
+            .collection('messes')
+            .doc(messId)
+            .snapshots()
+            .listen((snap) {
+              if (!mounted) return;
+              final rawSchedule = List<Map<String, dynamic>>.from(
+                (snap.data()?['bazarScheduleDetailed'] as List<dynamic>? ?? [])
+                    .map((e) => Map<String, dynamic>.from(e as Map)),
+              );
+              final tomorrow = now.add(const Duration(days: 1));
+              final tomorrowStr =
+                  '${tomorrow.year}-${tomorrow.month.toString().padLeft(2, '0')}-${tomorrow.day.toString().padLeft(2, '0')}';
+
+              final todayEntry = rawSchedule.firstWhere(
+                (e) => e['date'] == todayStr,
+                orElse: () => {},
+              );
+              final tomorrowEntry = rawSchedule.firstWhere(
+                (e) => e['date'] == tomorrowStr,
+                orElse: () => {},
+              );
+
+              setState(() {
+                _todayBazarNames = [];
+                _tomorrowBazarNames = [];
+              });
+
+              // Resolve member names
+              _resolveBazarNames(messId, todayEntry, tomorrowEntry);
+            }),
+      );
+
+      // ── Task schedule (real-time) ─────────────────────────────────────────
+      final tomorrow = now.add(const Duration(days: 1));
+      _subs.add(
+        FirebaseFirestore.instance
+            .collection('messes')
+            .doc(messId)
+            .collection('taskSchedule')
+            .where(
+              'date',
+              isGreaterThanOrEqualTo: Timestamp.fromDate(
+                DateTime(now.year, now.month, now.day),
+              ),
+            )
+            .where(
+              'date',
+              isLessThan: Timestamp.fromDate(
+                DateTime(tomorrow.year, tomorrow.month, tomorrow.day + 1),
+              ),
+            )
+            .snapshots()
+            .listen((snap) {
+              if (!mounted) return;
+              final todayTasks = <Map<String, dynamic>>[];
+              final tomorrowTasks = <Map<String, dynamic>>[];
+              for (final doc in snap.docs) {
+                final d = doc.data();
+                final date = (d['date'] as Timestamp).toDate();
+                final entry = {
+                  'taskName': d['taskName'] ?? '',
+                  'memberName': d['memberName'] ?? '',
+                  'isCompleted': d['isCompleted'] ?? false,
+                };
+                if (date.year == now.year &&
+                    date.month == now.month &&
+                    date.day == now.day) {
+                  todayTasks.add(entry);
+                } else {
+                  tomorrowTasks.add(entry);
+                }
+              }
+              setState(() {
+                _todayTasks = todayTasks;
+                _tomorrowTasks = tomorrowTasks;
+              });
+            }),
+      );
+
+      // ── Chat unread count (real-time) ─────────────────────────────────────
+      _subs.add(
+        ChatService().unreadCountStream(messId, uid).listen((count) {
+          if (!mounted) return;
+          setState(() => _chatUnreadCount = count);
+        }),
+      );
+
+      // ── Pending requests count (real-time) ────────────────────────────────
+      _subs.add(
+        FirebaseFirestore.instance
+            .collection('users')
+            .doc(uid)
+            .collection('invitations')
+            .where('status', isEqualTo: 'pending')
+            .snapshots()
+            .listen((snap) {
+              if (!mounted) return;
+              setState(() => _pendingRequestCount = snap.docs.length);
+            }),
+      );
+    } catch (_) {}
+  }
+
+  Future<void> _resolveBazarNames(
+    String messId,
+    Map<String, dynamic> todayEntry,
+    Map<String, dynamic> tomorrowEntry,
+  ) async {
+    try {
+      final membersSnap = await FirebaseFirestore.instance
+          .collection('messes')
+          .doc(messId)
+          .collection('members')
+          .get();
+      final nameMap = {
+        for (final d in membersSnap.docs)
+          d.id: d.data()['name'] as String? ?? '',
+      };
+      if (!mounted) return;
+      setState(() {
+        _todayBazarNames = (todayEntry['memberIds'] as List<dynamic>? ?? [])
+            .map((id) => nameMap[id as String] ?? id.toString())
+            .toList();
+        _tomorrowBazarNames =
+            (tomorrowEntry['memberIds'] as List<dynamic>? ?? [])
+                .map((id) => nameMap[id as String] ?? id.toString())
+                .toList();
+      });
     } catch (_) {}
   }
 
@@ -559,7 +754,7 @@ class _DashboardPageState extends State<DashboardPage> {
         }
       },
       child: Scaffold(
-        backgroundColor: AppColors.bgColor,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         body: pages[_selectedIndex],
         bottomNavigationBar: _buildBottomNav(),
       ),
@@ -582,13 +777,17 @@ class _DashboardPageState extends State<DashboardPage> {
                 const SizedBox(height: 16),
                 _buildQuickActions(),
                 const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(child: _buildTodaysMeal()),
-                    const SizedBox(width: 12),
-                    Expanded(child: _buildBazarSchedule()),
-                  ],
+                // Ads Banner - 320x50 standard size
+                const AdsBanner(
+                  height: AdsConfig.bannerHeight320x50,
+                  autoScrollDuration: AdsConfig.autoScrollDuration,
                 ),
+                const SizedBox(height: 16),
+                _buildTodaysMealCard(),
+                const SizedBox(height: 12),
+                _buildBazarScheduleCard(),
+                const SizedBox(height: 12),
+                _buildTaskScheduleCard(),
               ],
             ),
           ),
@@ -1216,7 +1415,7 @@ class _DashboardPageState extends State<DashboardPage> {
     );
   }
 
-  Widget _buildTodaysMeal() {
+  Widget _buildTodaysMealCard() {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -1233,126 +1432,389 @@ class _DashboardPageState extends State<DashboardPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Header with arrow link
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(6),
+                padding: const EdgeInsets.all(7),
                 decoration: BoxDecoration(
                   color: AppColors.primaryGreen.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(10),
                 ),
                 child: const Icon(
-                  Icons.restaurant,
+                  Icons.restaurant_rounded,
                   color: AppColors.primaryGreen,
-                  size: 16,
+                  size: 18,
                 ),
               ),
-              const SizedBox(width: 8),
-              const Text(
-                "Today's Meals",
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textDark,
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Text(
+                  "Today's Meals",
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textDark,
+                  ),
+                ),
+              ),
+              GestureDetector(
+                onTap: () => _onActionTap('Meal'),
+                child: Row(
+                  children: [
+                    Text(
+                      'View',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.primaryGreen,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const Icon(
+                      Icons.chevron_right_rounded,
+                      color: AppColors.primaryGreen,
+                      size: 18,
+                    ),
+                  ],
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 12),
-          if (_myMeals == 0)
+          const SizedBox(height: 14),
+          // Stats row
+          Row(
+            children: [
+              _mealStatChip(
+                'My',
+                _todayMyMeals == 0
+                    ? '0'
+                    : _todayMyMeals % 1 == 0
+                    ? _todayMyMeals.toInt().toString()
+                    : _todayMyMeals.toString(),
+                'meals',
+                AppColors.primaryGreen,
+              ),
+              const SizedBox(width: 10),
+              _mealStatChip(
+                'Mess',
+                _todayMessMeals == 0
+                    ? '0'
+                    : _todayMessMeals % 1 == 0
+                    ? _todayMessMeals.toInt().toString()
+                    : _todayMessMeals.toString(),
+                'meals',
+                Colors.blue,
+              ),
+              const SizedBox(width: 10),
+              _mealStatChip(
+                'Members',
+                '$_todayMembersCount',
+                'persons',
+                Colors.purple,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _mealStatChip(String label, String value, String unit, Color color) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
             Text(
-              'No meals recorded today',
-              style: TextStyle(fontSize: 13, color: Colors.grey.shade400),
-            )
-          else ...[
-            _buildMealRow(
-              'This Month',
-              '$_myMeals meals',
-              Icons.free_breakfast,
+              label,
+              style: TextStyle(
+                fontSize: 11,
+                color: color.withValues(alpha: 0.8),
+                fontWeight: FontWeight.w500,
+              ),
             ),
+            const SizedBox(height: 2),
+            Text(
+              value,
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: color,
+              ),
+            ),
+            Text(
+              unit,
+              style: TextStyle(
+                fontSize: 10,
+                color: color.withValues(alpha: 0.7),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBazarScheduleCard() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header with arrow link
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(7),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(
+                  Icons.shopping_basket_rounded,
+                  color: Colors.orange,
+                  size: 18,
+                ),
+              ),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Text(
+                  'Bazar Schedule',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textDark,
+                  ),
+                ),
+              ),
+              GestureDetector(
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const BazarSchedulePage()),
+                ),
+                child: const Row(
+                  children: [
+                    Text(
+                      'View',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.orange,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    Icon(
+                      Icons.chevron_right_rounded,
+                      color: Colors.orange,
+                      size: 18,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          // Today row
+          _scheduleRow(
+            'Today',
+            _todayBazarNames.isEmpty ? null : _todayBazarNames.join(', '),
+            Colors.orange,
+          ),
+          const SizedBox(height: 8),
+          // Tomorrow row
+          _scheduleRow(
+            'Tomorrow',
+            _tomorrowBazarNames.isEmpty ? null : _tomorrowBazarNames.join(', '),
+            Colors.orange.shade300,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTaskScheduleCard() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header with arrow link
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(7),
+                decoration: BoxDecoration(
+                  color: Colors.teal.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(
+                  Icons.task_alt_rounded,
+                  color: Colors.teal,
+                  size: 18,
+                ),
+              ),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Text(
+                  'Task Schedule',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textDark,
+                  ),
+                ),
+              ),
+              GestureDetector(
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const TaskSchedulePage()),
+                ),
+                child: const Row(
+                  children: [
+                    Text(
+                      'View',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.teal,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    Icon(
+                      Icons.chevron_right_rounded,
+                      color: Colors.teal,
+                      size: 18,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          // Today tasks
+          _taskRow('Today', _todayTasks),
+          if (_tomorrowTasks.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            _taskRow('Tomorrow', _tomorrowTasks),
           ],
         ],
       ),
     );
   }
 
-  Widget _buildMealRow(String meal, String count, IconData icon) {
+  Widget _scheduleRow(String label, String? names, Color color) {
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: 16, color: AppColors.textLight),
-        const SizedBox(width: 8),
-        Expanded(
+        SizedBox(
+          width: 72,
           child: Text(
-            meal,
-            style: const TextStyle(fontSize: 13, color: AppColors.textLight),
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              color: Colors.grey.shade500,
+              fontWeight: FontWeight.w500,
+            ),
           ),
         ),
-        Text(
-          count,
-          style: const TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.bold,
-            color: AppColors.primaryGreen,
+        Expanded(
+          child: Text(
+            names ?? 'Not assigned',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: names != null ? FontWeight.w600 : FontWeight.normal,
+              color: names != null ? color : Colors.grey.shade400,
+            ),
           ),
         ),
       ],
     );
   }
 
-  Widget _buildBazarSchedule() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+  Widget _taskRow(String label, List<Map<String, dynamic>> tasks) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 72,
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              color: Colors.grey.shade500,
+              fontWeight: FontWeight.w500,
+            ),
           ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: Colors.orange.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
+        ),
+        Expanded(
+          child: tasks.isEmpty
+              ? Text(
+                  'No tasks',
+                  style: TextStyle(fontSize: 13, color: Colors.grey.shade400),
+                )
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: tasks.map((t) {
+                    final done = t['isCompleted'] as bool? ?? false;
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 3),
+                      child: Row(
+                        children: [
+                          Icon(
+                            done
+                                ? Icons.check_circle_rounded
+                                : Icons.radio_button_unchecked,
+                            size: 14,
+                            color: done ? Colors.teal : Colors.grey.shade400,
+                          ),
+                          const SizedBox(width: 5),
+                          Expanded(
+                            child: Text(
+                              '${t['taskName']} · ${t['memberName']}',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                                color: done
+                                    ? Colors.grey.shade400
+                                    : AppColors.textDark,
+                                decoration: done
+                                    ? TextDecoration.lineThrough
+                                    : null,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }).toList(),
                 ),
-                child: const Icon(
-                  Icons.shopping_cart,
-                  color: Colors.orange,
-                  size: 16,
-                ),
-              ),
-              const SizedBox(width: 8),
-              const Text(
-                'Bazar',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textDark,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Text(
-            'No schedule set',
-            style: TextStyle(fontSize: 13, color: Colors.grey.shade400),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Set up in Mess Settings',
-            style: TextStyle(fontSize: 11, color: Colors.grey.shade400),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -1381,8 +1843,18 @@ class _DashboardPageState extends State<DashboardPage> {
               _buildNavItem(0, Icons.grid_view_rounded, 'Menu'),
               _buildNavItem(1, Icons.receipt_long, 'Transaction'),
               _buildNavItem(2, Icons.home_rounded, 'Home'),
-              _buildNavItem(3, Icons.chat_bubble_outline_rounded, 'Chat'),
-              _buildNavItem(4, Icons.person_outline_rounded, 'Profile'),
+              _buildNavItem(
+                3,
+                Icons.chat_bubble_outline_rounded,
+                'Chat',
+                badge: _chatUnreadCount,
+              ),
+              _buildNavItem(
+                4,
+                Icons.person_outline_rounded,
+                'Profile',
+                badge: _pendingRequestCount,
+              ),
             ],
           ),
         ),
@@ -1390,7 +1862,12 @@ class _DashboardPageState extends State<DashboardPage> {
     );
   }
 
-  Widget _buildNavItem(int index, IconData icon, String label) {
+  Widget _buildNavItem(
+    int index,
+    IconData icon,
+    String label, {
+    int badge = 0,
+  }) {
     final isSelected = _selectedIndex == index;
     return GestureDetector(
       onTap: () => setState(() => _selectedIndex = index),
@@ -1406,10 +1883,40 @@ class _DashboardPageState extends State<DashboardPage> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              icon,
-              size: 22,
-              color: isSelected ? AppColors.primaryGreen : Colors.grey.shade400,
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Icon(
+                  icon,
+                  size: 22,
+                  color: isSelected
+                      ? AppColors.primaryGreen
+                      : Colors.grey.shade400,
+                ),
+                if (badge > 0)
+                  Positioned(
+                    top: -6,
+                    right: -8,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 4,
+                        vertical: 1,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.red,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        badge > 99 ? '99+' : '$badge',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 9,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
             ),
             const SizedBox(height: 3),
             Text(
