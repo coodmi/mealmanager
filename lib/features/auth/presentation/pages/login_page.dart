@@ -163,41 +163,7 @@ class _LoginPageState extends State<LoginPage>
         return;
       }
 
-      // ── OTP DISABLED FOR TESTING ──────────────────────────────────────────
-      // Skip OTP verification and register directly
-      final rr = await FirebaseAuthService.registerUser(
-        name: name,
-        mobile: mobile,
-        email: email,
-        password: _registerPasswordController.text,
-      );
-      setState(() => _isLoading = false);
-      if (!mounted) return;
-      if (rr['success'] == true) {
-        _registerNameController.clear();
-        _registerMobileController.clear();
-        _registerEmailController.clear();
-        _registerPasswordController.clear();
-        _tabController.animateTo(0);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Account created! Please login.'),
-            backgroundColor: Colors.green,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(rr['message'] ?? 'Registration failed'),
-            backgroundColor: Colors.red,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
-      // ── END OTP DISABLED ──────────────────────────────────────────────────
-
-      /* OTP FLOW — re-enable when ready:
+      // Send OTP via Brevo and show OTP dialog
       final result = await EmailService.sendOTPEmail(email: email, name: name);
       setState(() => _isLoading = false);
       if (!mounted) return;
@@ -213,10 +179,10 @@ class _LoginPageState extends State<LoginPage>
           SnackBar(
             content: Text(result['message'] ?? 'Failed to send OTP'),
             backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
           ),
         );
       }
-      */
     } on TimeoutException catch (e) {
       setState(() => _isLoading = false);
       if (!mounted) return;
